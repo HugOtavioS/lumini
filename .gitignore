@@ -1,0 +1,53 @@
+# --- Node / TypeScript ---
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.turbo/
+.eslintcache
+
+# --- Env / secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Expo / React Native ---
+.expo/
+.expo-shared/
+apps/mobile/ios/
+apps/mobile/android/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+
+# --- NestJS / API ---
+apps/api/dist/
+
+# --- Logs ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs/
+*.log
+
+# --- Editors / OS ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Testes ---
+/coverage
+*.lcov
+
+# --- Banco local de desenvolvimento ---
+*.sqlite
+*.sqlite3
+*.db

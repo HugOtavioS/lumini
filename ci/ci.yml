@@ -1,0 +1,50 @@
+# CI básico do Lumini (SCRUM-69 / SCRUM-108): lint + testes a cada pull request.
+# Sem deploy automático, por decisão da equipe (ver docs/arquitetura/Lumini_Arquitetura_v1.2.md, Secão 8).
+#
+# Este workflow ainda não tem código para rodar contra (o pacote packages/domain
+# da tarefa NOVO-107 e a configuração de lint da SCRUM-68 não foram commitados
+# ainda). Os jobs abaixo detectam se cada parte já existe antes de tentar rodar,
+# para não falhar o CI enquanto o código está sendo criado. Substitua os `if`
+# por passos reais assim que cada `package.json` existir.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Verificar se já existe package.json na raiz
+        id: check-root
+        run: |
+          if [ -f package.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::package.json ainda não existe na raiz do monorepo — pulando install/lint/test."
+          fi
+
+      - name: Instalar dependências
+        if: steps.check-root.outputs.exists == 'true'
+        run: npm ci
+
+      - name: Lint
+        if: steps.check-root.outputs.exists == 'true'
+        run: npm run lint --if-present
+
+      - name: Testes
+        if: steps.check-root.outputs.exists == 'true'
+        run: npm test --if-present
