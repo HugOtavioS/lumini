@@ -11,9 +11,11 @@
  * As funções aqui são puras (texto → dados) para poderem ser testadas.
  */
 import { arredondar } from '../util/numeros';
-import { normalizarTexto } from '../util/texto';
+import { lerCsv } from '../util/csv';
 import { distanciaKm } from './baseContingencia';
 import type { LocalidadeClimatica } from './tipos';
+
+export { lerCsv };
 
 export interface CelulaAtlas {
   latitude: number;
@@ -34,19 +36,6 @@ export interface MunicipioIbge {
 
 const MESES_EN = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const MESES_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-
-/** Lê um CSV simples (separador `;` ou `,`, detectado pelo cabeçalho; aspas opcionais). */
-export function lerCsv(texto: string): { cabecalho: string[]; linhas: string[][]; separador: ';' | ',' } {
-  const linhasBrutas = texto.replace(/^﻿/, '').split(/\r?\n/).filter((l) => l.trim() !== '');
-  const primeira = linhasBrutas[0] ?? '';
-  const separador: ';' | ',' = (primeira.match(/;/g) ?? []).length >= (primeira.match(/,/g) ?? []).length ? ';' : ',';
-  const dividir = (linha: string): string[] => linha.split(separador).map((c) => c.trim().replace(/^"(.*)"$/, '$1'));
-  return {
-    cabecalho: dividir(primeira).map((c) => normalizarTexto(c)),
-    linhas: linhasBrutas.slice(1).map(dividir),
-    separador,
-  };
-}
 
 function numero(valor: string | undefined, separador: ';' | ','): number {
   if (valor === undefined) return Number.NaN;

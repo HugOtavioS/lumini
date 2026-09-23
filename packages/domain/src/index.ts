@@ -42,3 +42,8 @@ export * from './hsp/baseContingencia';
 export * from './hsp/nasaPower';
 export * from './hsp/obterHsp';
 export * from './hsp/importacaoAtlas';
+
+// SCRUM-79 — geometria da medição por RA e calibração contra medida conhecida
+export * from './medicao/geometria3d';
+export * from './medicao/calibracao';
+export * from './medicao/relatorioCalibracao';

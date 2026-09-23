@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.scripts.json",
     "exemplo-sombreamento": "tsx scripts/gerar-exemplo-sombreamento.ts",
-    "importar-atlas": "tsx scripts/importar-atlas-labren.ts"
+    "importar-atlas": "tsx scripts/importar-atlas-labren.ts",
+    "calibracao": "tsx scripts/analisar-calibracao.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",

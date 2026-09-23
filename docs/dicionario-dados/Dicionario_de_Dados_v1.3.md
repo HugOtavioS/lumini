@@ -12,6 +12,7 @@ Campos exigidos pelo pacote de cálculo `packages/domain` (SCRUM-8, SCRUM-76, SC
 
 - **Equipamento:** `unidade_venda`; dados de módulo para string sizing e área (`vmp_v`, `imp_a`, coeficientes de temperatura, `comprimento_mm`, `largura_mm`, `eficiencia_perc`); dados de inversor (`tensao_partida_v`, `qtd_mppt`, `strings_por_mppt`, `corrente_curto_max_mppt_a`, `configuracao_mppt`, limites por entrada de microinversor, `potencia_max_cc_w`, `tensao_ca_v`); `especificacoes` (JSON por categoria). `corrente_max_entrada_a` passa a ser explicitamente **por MPPT**.
 - **Parâmetros Técnicos:** `temp_min_ambiente_c` e `temp_max_celula_c` (string sizing).
+- **Medição do Telhado e Simulação de Sombreamento:** sem colunas novas; a v1.3 detalha a regra do `calibrada` (protocolo do SCRUM-79) e o formato JSON de `obstaculos` e `sombreamento_mensal` (SCRUM-81).
 - **Localidade Climática:** `hsp_mensal` (HSP de cada mês, para a geração mês a mês); fonte recomendada para a carga da contingência: Atlas Brasileiro de Energia Solar 2017 (INPE/LABREN), um registro por município do IBGE.
 
 ## 1.2 Alterações da v1.2
@@ -214,7 +215,7 @@ Onde: N, com cópia em L (pull).
 | inclinacao_graus | Float | Not Null, 0 a 90 | Medição RA ou manual |
 | orientacao | Enum (N, NE, L, SE, S, SO, O, NO) | Not Null | Bússola (RA) ou seleção manual |
 | azimute_graus | Float | Nullable, 0 a 360 | Precisão adicional para o sun path |
-| calibrada | Boolean | Not Null, default false | Calibração contra medida conhecida (SCRUM-79) |
+| calibrada | Boolean | Not Null, default false | `true` quando o aparelho foi aprovado no teste de calibração contra medida conhecida (SCRUM-79, `docs/testes/SCRUM-79_Protocolo_Calibracao_RA.md`); sempre `false` no método Manual |
 | data_coleta | Timestamp | Not Null | Sistema |
 | created_at / updated_at / updated_by | Timestamp / UUID | Not Null | Sistema |
 | sync_status | Enum | Not Null, default Pendente | Somente local |
@@ -230,8 +231,8 @@ Onde: L/N.
 | origem | Enum (Sun path + RA, Sun path manual, Estimativa manual) | Not Null | RF06 |
 | data_referencia | Date | Not Null | Data usada no cálculo da trajetória solar |
 | sombreamento_perc | Float | Not Null, 0 a 100 | Resultado usado como perda (RF07) |
-| sombreamento_mensal | JSON | Nullable | Percentual por mês, exibido no app e na web |
-| obstaculos | JSON | Nullable | Obstáculos identificados na cena de RA |
+| sombreamento_mensal | JSON | Nullable | Lista com o percentual de jan a dez, exibido no app e na web (`mensal[].sombreamentoPerc` do pacote de domínio) |
+| obstaculos | JSON | Nullable | Obstáculos identificados na cena de RA ou informados à mão, como perfil visto do centro do telhado: `[{nome, azimuteInicialGraus, azimuteFinalGraus, elevacaoGraus}]` (SCRUM-81) |
 | created_at / updated_at / updated_by | Timestamp / UUID | Not Null | Sistema |
 | sync_status | Enum | Not Null, default Pendente | Somente local |
 
