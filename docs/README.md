@@ -28,6 +28,10 @@
 - [`backlog/backlog-lumini-reestruturado.md`](backlog/backlog-lumini-reestruturado.md) — backlog completo por épico
 - [`backlog/backlog-novas-tarefas-2026-09-15.md`](backlog/backlog-novas-tarefas-2026-09-15.md) — tarefas novas e ajustes de 15/09/2026 (NOVO-101 a NOVO-109)
 
+## Avaliações técnicas
+
+- [`avaliacoes/SCRUM-81_Visualizacao_Sombreamento_2D_x_3D.md`](avaliacoes/SCRUM-81_Visualizacao_Sombreamento_2D_x_3D.md) — decisão 2D × 3D para a visualização do sombreamento, com diagrama de exemplo
+
 ## Diagramas e protótipo
 
 Os diagramas (`Lumini_Diagramas.drawio`) e o protótipo Figma ainda não estão versionados neste repositório — pendente da atualização prevista na tarefa NOVO-108.

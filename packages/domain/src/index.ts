@@ -23,3 +23,7 @@ export * from './dimensionamento/alertas';
 // SCRUM-80 — posição e trajetória solar (NOAA/Meeus)
 export * from './solar/posicaoSolar';
 export * from './solar/trajetoria';
+
+// SCRUM-81 — sombreamento por obstáculos e diagrama solar 2D (SVG)
+export * from './sombreamento/sombreamento';
+export * from './sombreamento/diagramaSvg';
