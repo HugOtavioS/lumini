@@ -1,0 +1,17 @@
+{
+  "name": "lumini",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Monorepo do Lumini — app mobile, painel web, API e pacotes compartilhados.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
