@@ -32,3 +32,6 @@ export * from './sombreamento/diagramaSvg';
 export * from './catalogo/tipos';
 export * from './catalogo/catalogo';
 export * from './catalogo/seed';
+
+// SCRUM-395 — compatibilidade elétrica inversor × módulos (string sizing)
+export * from './compatibilidade/stringSizing';
