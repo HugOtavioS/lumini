@@ -16,3 +16,6 @@ export {
 // SCRUM-12 — dimensionamento (kWp, perdas e geração estimada)
 export * from './dimensionamento/perdas';
 export * from './dimensionamento/dimensionamento';
+
+// SCRUM-392 e SCRUM-394 — alertas de espaço insuficiente e superdimensionamento
+export * from './dimensionamento/alertas';
