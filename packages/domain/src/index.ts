@@ -27,3 +27,8 @@ export * from './solar/trajetoria';
 // SCRUM-81 — sombreamento por obstáculos e diagrama solar 2D (SVG)
 export * from './sombreamento/sombreamento';
 export * from './sombreamento/diagramaSvg';
+
+// SCRUM-76 — catálogo de equipamentos (modelo, regras, filtros e carga inicial)
+export * from './catalogo/tipos';
+export * from './catalogo/catalogo';
+export * from './catalogo/seed';

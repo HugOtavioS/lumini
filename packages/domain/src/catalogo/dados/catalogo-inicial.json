@@ -1,0 +1,383 @@
+{
+  "versao": 1,
+  "dataReferenciaPrecos": "2026-09-23",
+  "observacao": "Itens reais do mercado brasileiro. Especificações conferidas nos datasheets dos fabricantes; preço de custo = preço à vista (PIX) na loja Minha Casa Solar em 23/09/2026. Os preços são referência inicial e devem ser mantidos pelo gestor no catálogo web (RF25).",
+  "margemPadraoPerc": 15,
+  "itens": [
+    {
+      "idEquipamento": "3dcca09f-caaa-4be8-9ae5-8d52a655acef",
+      "categoria": "Módulo",
+      "fabricante": "Canadian Solar",
+      "modelo": "HiKu6 CS6W-550MS",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "un",
+      "potenciaW": 550,
+      "vocV": 49.6,
+      "iscA": 14.0,
+      "vmpV": 41.7,
+      "impA": 13.2,
+      "coefTempVocPercC": -0.26,
+      "coefTempPmaxPercC": -0.34,
+      "coefTempIscPercC": 0.05,
+      "comprimentoMm": 2278,
+      "larguraMm": 1134,
+      "eficienciaPerc": 21.3,
+      "garantiaAnos": 12,
+      "especificacoes": { "tecnologia": "Mono PERC half-cell", "celulas": 144, "pesoKg": 27.6, "tensaoMaxSistemaV": 1500 },
+      "precoCusto": 547.77,
+      "fontes": {
+        "especificacoes": "https://static.csisolar.com/wp-content/uploads/sites/2/2024/05/14150509/CS-Datasheet-HiKu6_CS6W-MS_v2.811.pdf",
+        "preco": "https://www.minhacasasolar.com.br/painel-solar-550w-monocristalino-half-cell-canadian-cs6w-550ms-82127"
+      }
+    },
+    {
+      "idEquipamento": "fa5796f4-74a8-47f9-a418-c6d8ceb5705a",
+      "categoria": "Módulo",
+      "fabricante": "Osda Solar",
+      "modelo": "ODA610-33V-MHDRZ",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "un",
+      "potenciaW": 610,
+      "vocV": 48.68,
+      "iscA": 15.96,
+      "vmpV": 40.46,
+      "impA": 15.08,
+      "coefTempVocPercC": -0.25,
+      "coefTempPmaxPercC": -0.29,
+      "coefTempIscPercC": 0.041,
+      "comprimentoMm": 2384,
+      "larguraMm": 1134,
+      "eficienciaPerc": 22.6,
+      "garantiaAnos": 15,
+      "especificacoes": { "tecnologia": "N-type TOPCon bifacial", "celulas": 132, "pesoKg": 32.4, "tensaoMaxSistemaV": 1500 },
+      "precoCusto": 655.65,
+      "fontes": {
+        "especificacoes": "https://minhacasasolar.fbitsstatic.net/media/1.oda610-33v-mhdrz-datasheet-22.6(1)-(1).pdf",
+        "preco": "https://www.minhacasasolar.com.br/painel-solar-monocristalino-610w-bifacial-osda-oda610-33v-mhdrz-83802"
+      }
+    },
+    {
+      "idEquipamento": "92ee2c25-af4f-4c3d-9174-ecc05a1fedce",
+      "categoria": "Módulo",
+      "fabricante": "Honor Solar",
+      "modelo": "HY-M12/132H-700",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "un",
+      "potenciaW": 700,
+      "vocV": 47.9,
+      "iscA": 18.49,
+      "vmpV": 40.0,
+      "impA": 17.51,
+      "coefTempVocPercC": -0.25,
+      "coefTempPmaxPercC": -0.34,
+      "coefTempIscPercC": 0.04,
+      "comprimentoMm": 2384,
+      "larguraMm": 1303,
+      "eficienciaPerc": 22.5,
+      "garantiaAnos": 12,
+      "especificacoes": { "tecnologia": "N-type TOPCon, células de 210 mm", "celulas": 132, "pesoKg": 33, "tensaoMaxSistemaV": 1500 },
+      "precoCusto": 882.57,
+      "fontes": {
+        "especificacoes": "https://www.enfsolar.com/pv/panel-datasheet/crystalline/64678",
+        "preco": "https://www.minhacasasolar.com.br/painel-solar-monocristalino-700w-half-cell-honor-hy-m12-132h-700-84353"
+      }
+    },
+    {
+      "idEquipamento": "06475c3b-3199-48b6-aa89-6274bcf8a1c5",
+      "categoria": "Módulo",
+      "fabricante": "Maxeon",
+      "modelo": "Maxeon 3 SPR-MAX3-425-R",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "un",
+      "potenciaW": 425,
+      "vocV": 40.7,
+      "iscA": 13.13,
+      "vmpV": 34.9,
+      "impA": 12.18,
+      "coefTempVocPercC": -0.236,
+      "coefTempPmaxPercC": -0.27,
+      "coefTempIscPercC": 0.058,
+      "comprimentoMm": 1812,
+      "larguraMm": 1046,
+      "eficienciaPerc": 22.4,
+      "garantiaAnos": 40,
+      "especificacoes": { "tecnologia": "IBC (Maxeon Gen 3)", "celulas": 112, "pesoKg": 21.2, "tensaoMaxSistemaV": 1000 },
+      "precoCusto": 519.87,
+      "fontes": {
+        "especificacoes": "https://maxeon-production.squarespace.com/s/Maxeon-3-DC-415-430-W.pdf",
+        "preco": "https://www.minhacasasolar.com.br/painel-solar-monocristalino-425w-maxeon-spr-max3-425-r-84574"
+      }
+    },
+    {
+      "idEquipamento": "28e75bd1-8e7c-453f-9413-839e44490fcf",
+      "categoria": "Inversor",
+      "fabricante": "Growatt",
+      "modelo": "MIN 5000TL-X",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "un",
+      "potenciaW": 5000,
+      "tensaoMaxEntradaV": 550,
+      "faixaMpptMinV": 80,
+      "faixaMpptMaxV": 500,
+      "tensaoPartidaV": 100,
+      "qtdMppt": 2,
+      "stringsPorMppt": 1,
+      "correnteMaxEntradaA": 13.5,
+      "correnteCurtoMaxMpptA": 16.9,
+      "potenciaMaxCcW": 7000,
+      "fases": "Monofásico",
+      "tensaoCaV": 220,
+      "garantiaAnos": 10,
+      "especificacoes": { "eficienciaMaxPerc": 98.4 },
+      "precoCusto": 3925.0,
+      "fontes": {
+        "especificacoes": "https://solarempire.com.ec/wp-content/uploads/2023/08/Inversor-Growatt-MIN-5000TL-X.pdf",
+        "preco": "https://www.minhacasasolar.com.br/inversor-solar-monofasico-5kw-220v-2-mppt-growatt-min5000tl-x-81999"
+      }
+    },
+    {
+      "idEquipamento": "2430118f-0c0c-4fa1-8ca5-262b4ab17a8e",
+      "categoria": "Inversor",
+      "fabricante": "Growatt",
+      "modelo": "MIN 10000TL-X",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "un",
+      "potenciaW": 10000,
+      "tensaoMaxEntradaV": 600,
+      "faixaMpptMinV": 60,
+      "faixaMpptMaxV": 550,
+      "tensaoPartidaV": 100,
+      "qtdMppt": 3,
+      "configuracaoMppt": [
+        { "strings": 1, "correnteMaxA": 13.5, "correnteCurtoMaxA": 16.9 },
+        { "strings": 1, "correnteMaxA": 13.5, "correnteCurtoMaxA": 16.9 },
+        { "strings": 2, "correnteMaxA": 27, "correnteCurtoMaxA": 33.8 }
+      ],
+      "potenciaMaxCcW": 15000,
+      "fases": "Monofásico",
+      "tensaoCaV": 220,
+      "garantiaAnos": 10,
+      "especificacoes": { "eficienciaMaxPerc": 98.1 },
+      "precoCusto": 5300.07,
+      "fontes": {
+        "especificacoes": "https://www.enfsolar.com/pv/inverter-datasheet/14450",
+        "preco": "https://www.minhacasasolar.com.br/inversor-solar-monofasico-10kw-220v-3-mppt-growatt-min10000tl-x-82002"
+      }
+    },
+    {
+      "idEquipamento": "95ca5d41-5f4e-4b9e-bbee-33e7c5c3b5f0",
+      "categoria": "Inversor",
+      "fabricante": "Deye",
+      "modelo": "SUN-6K-G05P1-EU-AM2",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "un",
+      "potenciaW": 6000,
+      "tensaoMaxEntradaV": 550,
+      "faixaMpptMinV": 70,
+      "faixaMpptMaxV": 500,
+      "tensaoPartidaV": 80,
+      "qtdMppt": 2,
+      "stringsPorMppt": 1,
+      "correnteMaxEntradaA": 18,
+      "correnteCurtoMaxMpptA": 27,
+      "potenciaMaxCcW": 9000,
+      "fases": "Monofásico",
+      "tensaoCaV": 220,
+      "garantiaAnos": 5,
+      "especificacoes": { "eficienciaMaxPerc": 97.5 },
+      "precoCusto": 1896.27,
+      "fontes": {
+        "especificacoes": "https://www.minhacasasolar.com.br/inversor-solar-monofasico-6kw-220v-2mppt-deye-sun-6k-g05p1-eu-am2-83661",
+        "preco": "https://www.minhacasasolar.com.br/inversor-solar-monofasico-6kw-220v-2mppt-deye-sun-6k-g05p1-eu-am2-83661"
+      }
+    },
+    {
+      "idEquipamento": "28f0aa82-1612-494c-8b53-966355d32717",
+      "categoria": "Inversor",
+      "fabricante": "Hoymiles",
+      "modelo": "Microinversor HMS-2000DW-4T",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "un",
+      "potenciaW": 2000,
+      "tensaoMaxEntradaV": 65,
+      "faixaMpptMinV": 16,
+      "faixaMpptMaxV": 60,
+      "tensaoPartidaV": 22,
+      "qtdMppt": 2,
+      "stringsPorMppt": 2,
+      "correnteMaxEntradaA": 32,
+      "correnteCurtoMaxMpptA": 50,
+      "correnteMaxPorStringA": 16,
+      "correnteCurtoMaxPorStringA": 25,
+      "potenciaMaxCcW": null,
+      "fases": "Monofásico",
+      "tensaoCaV": 220,
+      "garantiaAnos": 12,
+      "especificacoes": { "tipo": "Microinversor", "entradas": 4, "modulosMax": 4 },
+      "precoCusto": 1859.07,
+      "fontes": {
+        "especificacoes": "https://www.minhacasasolar.com.br/microinversor-2kw-220v-monofasico-2mppt-com-wifi-hoymiles-hms-2000dw-4t-84334",
+        "preco": "https://www.minhacasasolar.com.br/microinversor-2kw-220v-monofasico-2mppt-com-wifi-hoymiles-hms-2000dw-4t-84334"
+      }
+    },
+    {
+      "idEquipamento": "a74b2745-5263-408a-a176-b6c0c5203e8d",
+      "categoria": "Inversor",
+      "fabricante": "Growatt",
+      "modelo": "MID 15KTL3-X",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "un",
+      "potenciaW": 15000,
+      "tensaoMaxEntradaV": 1100,
+      "faixaMpptMinV": 200,
+      "faixaMpptMaxV": 1000,
+      "tensaoPartidaV": null,
+      "qtdMppt": 2,
+      "stringsPorMppt": 2,
+      "correnteMaxEntradaA": 27,
+      "correnteCurtoMaxMpptA": 33.8,
+      "potenciaMaxCcW": 22500,
+      "fases": "Trifásico",
+      "tensaoCaV": 380,
+      "garantiaAnos": null,
+      "especificacoes": { "eficienciaMaxPerc": 98.75 },
+      "precoCusto": 6612.3,
+      "fontes": {
+        "especificacoes": "https://growatt.tech/wp-content/uploads/shared-files/MID-1525KTL3-X-Datasheet-EN.pdf",
+        "preco": "https://www.minhacasasolar.com.br/inversor-solar-trifasico-15kw-380v-4mppt-growatt-mid15ktl3-x-83104"
+      }
+    },
+    {
+      "idEquipamento": "2fa87991-4163-41ac-ac2b-385d5c7fc5a5",
+      "categoria": "Estrutura",
+      "fabricante": "Solar Group",
+      "modelo": "Kit fixação 4 módulos — telhado fibrocimento (madeira), Smart Profile 1200 mm",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "kit",
+      "potenciaW": null,
+      "garantiaAnos": null,
+      "especificacoes": {
+        "telhado": "Fibrocimento sobre madeira",
+        "capacidadeModulos": 4,
+        "potenciaMaxModuloW": 550,
+        "material": "Alumínio anodizado e aço galvanizado"
+      },
+      "precoCusto": 389.0,
+      "fontes": {
+        "especificacoes": "https://www.minhacasasolar.com.br/kit-fixacao-4-modulos-para-telhado-fibrocimento-madeira-1200mm-solar-group-84148",
+        "preco": "https://www.minhacasasolar.com.br/kit-fixacao-4-modulos-para-telhado-fibrocimento-madeira-1200mm-solar-group-84148"
+      }
+    },
+    {
+      "idEquipamento": "c2435c13-5381-49fc-94ea-ed67c51ce037",
+      "categoria": "Estrutura",
+      "fabricante": "Romagnole",
+      "modelo": "Kit fixação telhado cerâmico — até 550 W (SKU 622706)",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "kit",
+      "potenciaW": null,
+      "garantiaAnos": null,
+      "especificacoes": {
+        "telhado": "Cerâmico/colonial",
+        "perfis": "4 perfis H de 2400 mm",
+        "potenciaMaxModuloW": 550,
+        "material": "Alumínio"
+      },
+      "precoCusto": 445.98,
+      "fontes": {
+        "especificacoes": "https://www.minhacasasolar.com.br/kit-fixacao-painel-solar-ate-550w-telhado-ceramico-romagnole-82153",
+        "preco": "https://www.minhacasasolar.com.br/kit-fixacao-painel-solar-ate-550w-telhado-ceramico-romagnole-82153"
+      }
+    },
+    {
+      "idEquipamento": "0e346ee2-52b3-4c72-b54f-83d48a2ead0c",
+      "categoria": "String Box",
+      "fabricante": "Clamper",
+      "modelo": "Clamper Solar SB 1E/1S 1040V 32A (PC 01/01)",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "un",
+      "potenciaW": null,
+      "garantiaAnos": 3,
+      "especificacoes": {
+        "entradas": 1,
+        "saidas": 1,
+        "tensaoMaxCcV": 1040,
+        "correnteMaxA": 32,
+        "dpsImaxKa": 40,
+        "protecao": "IP65"
+      },
+      "precoCusto": 399.0,
+      "fontes": {
+        "especificacoes": "https://www.minhacasasolar.com.br/string-box-clamper-solar-sb-1e-1s-1040v-32a-pc-01-01-81380",
+        "preco": "https://www.minhacasasolar.com.br/string-box-clamper-solar-sb-1e-1s-1040v-32a-pc-01-01-81380"
+      }
+    },
+    {
+      "idEquipamento": "1d18622b-2620-433f-a649-d84c44e40735",
+      "categoria": "String Box",
+      "fabricante": "Clamper",
+      "modelo": "String Box Solar 2E/2S 1040V 32A (PC 18)",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "un",
+      "potenciaW": null,
+      "garantiaAnos": 3,
+      "especificacoes": {
+        "entradas": 2,
+        "saidas": 2,
+        "tensaoMaxCcV": 1040,
+        "correnteMaxA": 32,
+        "dpsImaxKa": 40,
+        "protecao": "IP65"
+      },
+      "precoCusto": 445.47,
+      "fontes": {
+        "especificacoes": "https://www.minhacasasolar.com.br/string-box-solar-32a-1040v-cc-2e-2s-clamper-pc-18-82659",
+        "preco": "https://www.minhacasasolar.com.br/string-box-solar-32a-1040v-cc-2e-2s-clamper-pc-18-82659"
+      }
+    },
+    {
+      "idEquipamento": "75ddcde6-46f4-4142-ab66-66fd74a4aea5",
+      "categoria": "Cabos",
+      "fabricante": "Lafeber",
+      "modelo": "Cabo solar 6 mm² 1,8 kV CC — vermelho",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "m",
+      "potenciaW": null,
+      "garantiaAnos": null,
+      "especificacoes": {
+        "secaoMm2": 6,
+        "tensaoCcKv": 1.8,
+        "cor": "Vermelho",
+        "condutor": "Cobre estanhado classe 5",
+        "norma": "NBR 16612",
+        "embalagem": "Rolo de 100 m por R$ 761,67 (preço por metro = rolo ÷ 100)"
+      },
+      "precoCusto": 7.62,
+      "fontes": {
+        "especificacoes": "https://www.minhacasasolar.com.br/cabo-solar-fotovoltaico-6mm-100-metros-vermelho-82479",
+        "preco": "https://www.minhacasasolar.com.br/cabo-solar-fotovoltaico-6mm-100-metros-vermelho-82479"
+      }
+    },
+    {
+      "idEquipamento": "5d2661d6-f8ae-494f-bde5-8a5c286a04d7",
+      "categoria": "Conectores",
+      "fabricante": "Stäubli",
+      "modelo": "Conector MC4 original (par macho + fêmea)",
+      "fornecedor": "Minha Casa Solar",
+      "unidadeVenda": "par",
+      "potenciaW": null,
+      "garantiaAnos": null,
+      "especificacoes": {
+        "correnteNominalA": 30,
+        "tensaoNominalV": 1000,
+        "secaoCaboMm2": "4 a 6",
+        "protecao": "IP67"
+      },
+      "precoCusto": 14.79,
+      "fontes": {
+        "especificacoes": "https://www.minhacasasolar.com.br/conector-mc4-par-painel-solar-original-staubli-82025",
+        "preco": "https://www.minhacasasolar.com.br/conector-mc4-par-painel-solar-original-staubli-82025"
+      }
+    }
+  ]
+}

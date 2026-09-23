@@ -21,7 +21,7 @@
 
 ## Dados
 
-- [`dicionario-dados/Dicionario_de_Dados_v1.2.md`](dicionario-dados/Dicionario_de_Dados_v1.2.md) — dicionário de dados (16 tabelas)
+- [`dicionario-dados/Dicionario_de_Dados_v1.3.md`](dicionario-dados/Dicionario_de_Dados_v1.3.md) — dicionário de dados (16 tabelas); a v1.3 detalha os campos técnicos do catálogo, dos parâmetros e da simulação usados pelo pacote `packages/domain`
 
 ## Backlog
 
