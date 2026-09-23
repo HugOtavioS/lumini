@@ -19,3 +19,7 @@ export * from './dimensionamento/dimensionamento';
 
 // SCRUM-392 e SCRUM-394 — alertas de espaço insuficiente e superdimensionamento
 export * from './dimensionamento/alertas';
+
+// SCRUM-80 — posição e trajetória solar (NOAA/Meeus)
+export * from './solar/posicaoSolar';
+export * from './solar/trajetoria';
