@@ -12,6 +12,7 @@ Campos exigidos pelo pacote de cálculo `packages/domain` (SCRUM-8, SCRUM-76, SC
 
 - **Equipamento:** `unidade_venda`; dados de módulo para string sizing e área (`vmp_v`, `imp_a`, coeficientes de temperatura, `comprimento_mm`, `largura_mm`, `eficiencia_perc`); dados de inversor (`tensao_partida_v`, `qtd_mppt`, `strings_por_mppt`, `corrente_curto_max_mppt_a`, `configuracao_mppt`, limites por entrada de microinversor, `potencia_max_cc_w`, `tensao_ca_v`); `especificacoes` (JSON por categoria). `corrente_max_entrada_a` passa a ser explicitamente **por MPPT**.
 - **Parâmetros Técnicos:** `temp_min_ambiente_c` e `temp_max_celula_c` (string sizing).
+- **Localidade Climática:** `hsp_mensal` (HSP de cada mês, para a geração mês a mês); fonte recomendada para a carga da contingência: Atlas Brasileiro de Energia Solar 2017 (INPE/LABREN), um registro por município do IBGE.
 
 ## 1.2 Alterações da v1.2
 
@@ -175,10 +176,11 @@ Onde: N, com cópia em L (pull).
 | latitude / longitude | Decimal(9,6) | Not Null | Referência regional (RF08, alternativa 2b) |
 | hsp_medio | Float | Not Null, > 0 | API de clima ou base pré-carregada |
 | irradiacao_kwh_m2_dia | Float | Not Null, > 0 | API de clima ou base pré-carregada |
+| hsp_mensal | JSON | Nullable | **v1.3.** Lista com o HSP de jan a dez (kWh/m²/dia) — geração mês a mês (SCRUM-8/SCRUM-12) |
 | fonte | Enum (API, Contingência) | Not Null | Sistema |
 | data_atualizacao | Timestamp | Not Null | Sistema (RF08, subfluxo 3.1) |
 
-Onde: L/N.
+Onde: L/N. A base de contingência (SCRUM-17) pode ser gerada a partir do Atlas Brasileiro de Energia Solar 2ª ed. (INPE/LABREN, 2017) com `npm run importar-atlas -w @lumini/domain` — um registro por município do IBGE, com o HSP anual e mensal da célula de 0,1° mais próxima. A consulta com fallback está em `packages/domain/src/hsp/obterHsp.ts` (SCRUM-8).
 
 ## 4.2 Parâmetros Técnicos
 

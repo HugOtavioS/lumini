@@ -7,6 +7,7 @@
  */
 import { ehNumeroFinito, type ErroCampo } from '../erros';
 import { arredondar } from '../util/numeros';
+import { normalizarTexto } from '../util/texto';
 import {
   CATEGORIAS_EQUIPAMENTO,
   FASES,
@@ -175,22 +176,8 @@ export interface FiltroCatalogo {
   ordem?: 'asc' | 'desc';
 }
 
-const ACENTOS: Record<string, string> = {
-  á: 'a', à: 'a', â: 'a', ã: 'a', ä: 'a',
-  é: 'e', è: 'e', ê: 'e', ë: 'e',
-  í: 'i', ì: 'i', î: 'i', ï: 'i',
-  ó: 'o', ò: 'o', ô: 'o', õ: 'o', ö: 'o',
-  ú: 'u', ù: 'u', û: 'u', ü: 'u',
-  ç: 'c', ñ: 'n',
-};
-
-/** Minúsculas e sem acentos (sem depender de `String.prototype.normalize`, que o Hermes pode não ter). */
-export function normalizarTexto(texto: string): string {
-  return texto
-    .toLowerCase()
-    .replace(/[áàâãäéèêëíìîïóòôõöúùûüçñ]/g, (c) => ACENTOS[c] ?? c)
-    .trim();
-}
+/** Reexportado por compatibilidade; a implementação fica em `util/texto`. */
+export { normalizarTexto };
 
 /**
  * Filtra e ordena o catálogo (RF09, passo 1; SCRUM-76, subtarefa 3).

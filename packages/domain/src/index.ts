@@ -35,3 +35,10 @@ export * from './catalogo/seed';
 
 // SCRUM-395 — compatibilidade elétrica inversor × módulos (string sizing)
 export * from './compatibilidade/stringSizing';
+
+// SCRUM-8 — HSP automático pela localização GPS, com fallback para a base de contingência
+export * from './hsp/tipos';
+export * from './hsp/baseContingencia';
+export * from './hsp/nasaPower';
+export * from './hsp/obterHsp';
+export * from './hsp/importacaoAtlas';
