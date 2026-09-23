@@ -438,7 +438,7 @@ function mpptsCalculados(ctx: Contexto, slots: readonly Slot[], escolhas: readon
   return resultado;
 }
 
-/** Texto do arranjo, ex.: "MPPT 1: 1 × 5 módulos · MPPT 2: 1 × 5 módulos". */
+/** Texto do arranjo, ex.: "MPPT 1: 1 string de 5 módulos | MPPT 2: 1 string de 5 módulos". */
 export function descreverArranjo(arranjo: readonly MpptCalculado[]): string {
   const variosInversores = arranjo.some((m) => m.inversor > 1);
   return arranjo
@@ -609,11 +609,18 @@ export function verificarCompatibilidade(entrada: EntradaCompatibilidade): Resul
     if (encontrado) {
       arranjo = mpptsCalculados(ctx, slots, encontrado.escolhas);
     } else {
-      const aceitam = slots.filter((slot) => avaliarSlot(ctx, slot.espec, 1, Math.max(minimoHard, 1)) !== null);
-      const motivo =
-        aceitam.length < slots.length
-          ? ` Só ${plural(aceitam.length, 'MPPT aceita', 'MPPTs aceitam')} a corrente de curto deste módulo (${fmtA(iscMax)}).`
-          : '';
+      // Explica o motivo mais provável: janela de tensão impossível ou MPPTs que não aguentam a corrente.
+      const aceitamCorrente = slots.filter(
+        (slot) =>
+          (slot.espec.correnteCurtoMaxA === undefined || iscMax <= slot.espec.correnteCurtoMaxA + 1e-9) &&
+          (curtoPorString === undefined || iscMax <= curtoPorString + 1e-9),
+      );
+      let motivo = '';
+      if (minimoHard > maximoHard) {
+        motivo = ` A string precisa de pelo menos ${plural(minimoHard, 'módulo', 'módulos')} para operar, mas no frio cabem no máximo ${maximoHard}.`;
+      } else if (aceitamCorrente.length < slots.length) {
+        motivo = ` Só ${plural(aceitamCorrente.length, 'MPPT aceita', 'MPPTs aceitam')} a corrente de curto deste módulo (${fmtA(iscMax)}).`;
+      }
       add(
         'erro',
         'SEM_ARRANJO_VALIDO',
