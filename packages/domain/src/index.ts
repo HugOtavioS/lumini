@@ -12,3 +12,7 @@ export {
   normalizar180,
   normalizar360,
 } from './util/numeros';
+
+// SCRUM-12 — dimensionamento (kWp, perdas e geração estimada)
+export * from './dimensionamento/perdas';
+export * from './dimensionamento/dimensionamento';
