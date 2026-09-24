@@ -32,7 +32,11 @@ const resultado = gerarDiagramaSombreamento({
 });
 const ms = performance.now() - inicio;
 
-writeFileSync(destino, `${resultado.svg}\n`, 'utf8');
+// Sem quebra de linha no final: o SVG tem uma linha só e, assim, o arquivo fica
+// com os mesmos bytes no Linux e no Windows (onde o git troca LF por CRLF).
+// Com a quebra, regerar o diagrama no Windows deixava o arquivo "modificado"
+// no git mesmo sem nenhuma diferença no conteúdo.
+writeFileSync(destino, resultado.svg, 'utf8');
 console.log(`Diagrama salvo em ${destino} (${ms.toFixed(1)} ms)`);
 console.log('Sombreamento mensal (%):', resultado.sombreamento.mensal.map((m) => m.sombreamentoPerc).join(' | '));
 console.log('Média anual (%):', resultado.sombreamento.mediaAnualPerc);
