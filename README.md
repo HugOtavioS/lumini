@@ -82,6 +82,19 @@ lumini/
 
 Em definição junto com a escolha do framework web (NOVO-101) e da hospedagem AWS (NOVO-102). Este README será atualizado com instruções de instalação e execução (mobile, web e API) conforme cada parte for implementada.
 
+Já dá para rodar o pacote de cálculo (`packages/domain`), com Node.js 20 ou mais recente:
+
+```bash
+npm ci                  # instala as dependências de todos os pacotes (npm workspaces)
+npm test                # verificação de tipos + testes automatizados
+npm run test:detalhado  # lista cada teste, agrupado por item do backlog
+npm run demo            # roda cada task com um exemplo e mostra o resultado na tela
+```
+
+No PowerShell do Windows, use `npm.cmd` no lugar de `npm` se a política de scripts bloquear o `npm`. Sem internet, use `npm run demo:sem-internet`.
+
+Detalhes e exemplos de uso em [`packages/domain/README.md`](packages/domain/README.md).
+
 ## Documentação
 
 Toda a documentação do projeto está em [`docs/`](docs/): Especificação de Requisitos de Software (ERS) e seu adendo, Documento de Arquitetura de Software (DAS), Dicionário de Dados, backlog e o registro de decisões de escopo e arquitetura. Veja o [índice em `docs/README.md`](docs/README.md).

@@ -21,12 +21,20 @@
 
 ## Dados
 
-- [`dicionario-dados/Dicionario_de_Dados_v1.2.md`](dicionario-dados/Dicionario_de_Dados_v1.2.md) — dicionário de dados (16 tabelas)
+- [`dicionario-dados/Dicionario_de_Dados_v1.3.md`](dicionario-dados/Dicionario_de_Dados_v1.3.md) — dicionário de dados (16 tabelas); a v1.3 detalha os campos técnicos do catálogo, dos parâmetros e da simulação usados pelo pacote `packages/domain`
 
 ## Backlog
 
 - [`backlog/backlog-lumini-reestruturado.md`](backlog/backlog-lumini-reestruturado.md) — backlog completo por épico
 - [`backlog/backlog-novas-tarefas-2026-09-15.md`](backlog/backlog-novas-tarefas-2026-09-15.md) — tarefas novas e ajustes de 15/09/2026 (NOVO-101 a NOVO-109)
+
+## Testes
+
+- [`testes/SCRUM-79_Protocolo_Calibracao_RA.md`](testes/SCRUM-79_Protocolo_Calibracao_RA.md) — protocolo de calibração da medição por RA contra medida manual conhecida, com modelo de registro (`SCRUM-79_modelo_registro_calibracao.csv`)
+
+## Avaliações técnicas
+
+- [`avaliacoes/SCRUM-81_Visualizacao_Sombreamento_2D_x_3D.md`](avaliacoes/SCRUM-81_Visualizacao_Sombreamento_2D_x_3D.md) — decisão 2D × 3D para a visualização do sombreamento, com diagrama de exemplo
 
 ## Diagramas e protótipo
 
