@@ -85,9 +85,13 @@ Em definição junto com a escolha do framework web (NOVO-101) e da hospedagem A
 Já dá para rodar o pacote de cálculo (`packages/domain`), com Node.js 20 ou mais recente:
 
 ```bash
-npm ci      # instala as dependências de todos os pacotes (npm workspaces)
-npm test    # verificação de tipos + testes automatizados
+npm ci                  # instala as dependências de todos os pacotes (npm workspaces)
+npm test                # verificação de tipos + testes automatizados
+npm run test:detalhado  # lista cada teste, agrupado por item do backlog
+npm run demo            # roda cada task com um exemplo e mostra o resultado na tela
 ```
+
+No PowerShell do Windows, use `npm.cmd` no lugar de `npm` se a política de scripts bloquear o `npm`. Sem internet, use `npm run demo:sem-internet`.
 
 Detalhes e exemplos de uso em [`packages/domain/README.md`](packages/domain/README.md).
 

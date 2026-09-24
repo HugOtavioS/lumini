@@ -14,7 +14,12 @@ npm ci                          # na raiz do monorepo
 npm test                        # typecheck + testes de todos os pacotes
 npm test -w @lumini/domain      # só este pacote
 npm run test:watch -w @lumini/domain
+npm run test:detalhado          # lista cada teste, agrupado por item do backlog
+npm run demo                    # demonstração: roda cada task com um exemplo
+npm run demo:sem-internet       # a mesma demonstração, sem tentar a NASA POWER
 ```
+
+A demonstração (`scripts/demonstracao.ts`) percorre os itens na ordem do Jira (SCRUM-8, 12, 76, 79, 80, 81, 392, 394, 395), mostra os números de cada um e confere o critério de aceite (`[OK]`, `[FALHOU]` ou `[AVISO]`). Termina com código 1 se alguma conferência falhar e não altera arquivos do repositório: o diagrama do SCRUM-81 vai para a pasta temporária do sistema. Com internet, o HSP do SCRUM-8 vem da NASA POWER; sem ela, a demonstração usa um valor fictício, marcado como tal na tela.
 
 ```ts
 import { dimensionarSistema, verificarCompatibilidadeCatalogo, obterHsp } from '@lumini/domain';

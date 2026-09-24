@@ -13,7 +13,10 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:detalhado": "vitest run --reporter=verbose",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.scripts.json",
+    "demo": "tsx scripts/demonstracao.ts",
+    "demo:sem-internet": "tsx scripts/demonstracao.ts --sem-internet",
     "exemplo-sombreamento": "tsx scripts/gerar-exemplo-sombreamento.ts",
     "importar-atlas": "tsx scripts/importar-atlas-labren.ts",
     "calibracao": "tsx scripts/analisar-calibracao.ts"
