@@ -10,6 +10,7 @@ Este dicionário descreve, campo a campo, os dados persistidos pelo Lumini no ba
 
 Tabelas e campos usados pelo pacote de sincronização `packages/sync` (Épico 4).
 
+- **Log de Auditoria:** coluna `motivo` e novas entidades (Cliente, Instalacao, Medicao, SimulacaoSombreamento, SolicitacaoUpgrade), para registrar cada sobrescrita feita pela regra de conflito (SCRUM-83), inclusive os valores da alteração que foi descartada. Os valores do enum `entidade` passam a ser escritos como no código, sem acento (`Usuario`).
 - **Fila de Sincronização (nova, só no banco local):** uma linha por registro com alteração ainda não confirmada pelo servidor, com a versão-base usada para detectar conflito, o número de tentativas e a hora da próxima tentativa (SCRUM-82). Seção 8.3.
 
 ## 1.2 Alterações da v1.3
@@ -351,16 +352,17 @@ Onde: L/N.
 |---|---|---|---|
 | id_log | UUID | PK | Sistema |
 | id_empresa | UUID | FK Empresa, Not Null | — |
-| entidade | Enum (Equipamento, ItemProposta, Proposta, Assinatura, Usuário) | Not Null | Registro alterado |
+| entidade | Enum (Equipamento, ItemProposta, Proposta, Assinatura, Usuario, Cliente, Instalacao, Medicao, SimulacaoSombreamento, SolicitacaoUpgrade) | Not Null | Registro alterado. **v1.4:** entidades da sincronização (conflitos, SCRUM-83) |
 | id_registro | UUID | Not Null | Registro alterado |
-| campo | String(60) | Not Null | Ex.: preco_custo, ajuste_percentual, status_proposta |
+| campo | String(60) | Not Null | Ex.: preco_custo, ajuste_percentual, status_proposta; nos itens, também `(item incluído)` e `(item removido)` |
 | valor_anterior | String | Nullable | Valor antes da alteração |
 | valor_novo | String | Nullable | Valor depois da alteração |
 | id_usuario | UUID | FK Usuário, Not Null | Quem alterou |
 | origem | Enum (Mobile, Web, API) | Not Null | De onde veio a alteração |
 | data_hora | Timestamp | Not Null | Sistema |
+| motivo | String(300) | Nullable | **v1.4.** Por que a linha existe quando não é uma edição comum. Ex.: "Conflito de sincronização (last-write-wins): a versão de 18/10/2026 às 09:10 substituiu a de 18/10/2026 às 09:05." |
 
-Onde: L/N (gerado no dispositivo para ajustes de preço e enviado na sincronização). Substitui a entidade de preço versionado das versões anteriores.
+Onde: L/N (gerado no dispositivo para ajustes de preço e enviado na sincronização; gerado na API ao resolver conflitos). Substitui a entidade de preço versionado das versões anteriores. Em conflitos, há uma linha por campo sobrescrito; quando a alteração que chegou é a descartada, `valor_anterior` guarda o que se perdeu e `valor_novo`, o que prevaleceu.
 
 ## 8.2 Log de Sincronização
 

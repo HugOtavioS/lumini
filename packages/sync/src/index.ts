@@ -14,3 +14,7 @@ export * from './transporte';
 export * from './fila/backoff';
 export * from './fila/migracoes';
 export * from './fila/fila';
+
+// SCRUM-83 — resolução de conflito (last-write-wins) com log de auditoria
+export * from './conflito/diferencas';
+export * from './conflito/resolverConflito';
