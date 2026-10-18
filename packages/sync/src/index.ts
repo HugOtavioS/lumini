@@ -21,3 +21,7 @@ export * from './conflito/resolverConflito';
 
 // SCRUM-87 — limite de armazenamento local e limpeza manual
 export * from './armazenamento/politica';
+
+// SCRUM-86 — servidor de referência (regras da API) e aplicação do pull no aparelho
+export * from './servidor/servidorReferencia';
+export * from './recebimento';
