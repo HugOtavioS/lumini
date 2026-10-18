@@ -54,6 +54,14 @@ describe('resolverConflito — sem conflito', () => {
     expect(r.observacoes[0]).toContain('atrasado');
   });
 
+  it('versão do servidor gravada pelo mesmo aparelho (a resposta se perdeu e o técnico editou de novo): aplica, mesmo com a versão-base antiga', () => {
+    const deNovo = proposta('p1', 'i1', '2026-10-18T12:07:00.000Z', { valor_total: 23000 }, TECNICO_ANA);
+    const r = resolverConflito(entrada({ atual: daAna, recebida: deNovo, baseUpdatedAt: T0, atualGravadaPeloMesmoAparelho: true }));
+    expect(r).toMatchObject({ decisao: 'atualizar', conflito: false, vencedora: deNovo, auditoria: [], aviso: null });
+    // Sem essa informação, a mesma situação pareceria edição concorrente.
+    expect(resolverConflito(entrada({ atual: daAna, recebida: deNovo, baseUpdatedAt: T0 })).conflito).toBe(true);
+  });
+
   it('reenvio do mesmo conteúdo (o aparelho não recebeu a confirmação): nada muda', () => {
     const r = resolverConflito(entrada({ atual: daAna, recebida: { ...daAna }, baseUpdatedAt: T0 }));
     expect(r).toMatchObject({ decisao: 'repetida', conflito: false, vencedora: daAna, auditoria: [], aviso: null });

@@ -11,13 +11,20 @@ const T0 = '2026-10-18T12:00:00.000Z';
 const T1 = '2026-10-18T12:05:00.000Z';
 const T2 = '2026-10-18T12:10:00.000Z';
 
+/** Cada pessoa usa o próprio aparelho (o servidor guarda qual aparelho gravou cada versão). */
+const APARELHO: Readonly<Record<string, string>> = {
+  [TECNICO_ANA]: 'celular-ana',
+  [TECNICO_BRUNO]: 'celular-bruno',
+  [GESTORA_CARLA]: 'navegador-carla',
+};
+
 function servidor() {
   let n = 0;
   return new ServidorSincronizacaoMemoria({ relogio: () => Date.parse('2026-10-18T12:30:00.000Z'), gerarId: () => `id-${(n += 1)}` });
 }
 
 function push(s: ServidorSincronizacaoMemoria, sessao: SessaoServidor, ...operacoes: RequisicaoPush['operacoes']) {
-  return s.push(sessao, { idDispositivo: 'aparelho-1', operacoes });
+  return s.push(sessao, { idDispositivo: APARELHO[sessao.idUsuario] ?? 'aparelho-desconhecido', operacoes });
 }
 
 /** Servidor com cliente c1, instalação i1 e proposta p1 (versão T0). */
@@ -102,6 +109,48 @@ describe('servidor de referência — conflito, auditoria e avisos', () => {
   });
 });
 
+describe('servidor de referência — reenvio quando a resposta se perde', () => {
+  it('nova edição no mesmo aparelho depois de uma resposta perdida não é conflito; vinda de outro aparelho, é', () => {
+    const s = comProposta();
+    // A Ana edita e envia; o servidor grava, mas a resposta se perde. Ela edita de novo antes do
+    // reenvio, e a fila manda a versão nova com a mesma versão-base de antes (T0).
+    push(s, ANA, operacao('Proposta', proposta('p1', 'i1', T1, { valor_total: 22000 }), T0));
+    const r = push(s, ANA, operacao('Proposta', proposta('p1', 'i1', T2, { valor_total: 23000 }), T0));
+    expect(r.resultados[0]).toMatchObject({ situacao: 'aplicada', conflito: false });
+    expect(s.obter('Proposta', 'p1')?.dados.valor_total).toBe(23000);
+    expect(s.logAuditoria).toEqual([]);
+    expect(s.pull(ANA, { cursor: null }).avisos).toEqual([]);
+
+    // A mesma versão-base, vinda do celular do Bruno, é edição concorrente.
+    const doBruno = push(s, BRUNO, operacao('Proposta', proposta('p1', 'i1', '2026-10-18T12:15:00.000Z', { valor_total: 24500 }, TECNICO_BRUNO), T0));
+    expect(doBruno.resultados[0]).toMatchObject({ situacao: 'aplicada', conflito: true });
+  });
+
+  it('reenvio de uma alteração descartada: mesma resposta, sem repetir o log de auditoria', () => {
+    const s = comProposta();
+    push(s, BRUNO, operacao('Proposta', proposta('p1', 'i1', T2, { valor_total: 24500 }, TECNICO_BRUNO), T0));
+    const daAna = operacao('Proposta', proposta('p1', 'i1', T1, { valor_total: 22000 }), T0);
+    const primeira = push(s, ANA, daAna);
+    const segunda = push(s, ANA, daAna); // a primeira resposta se perdeu
+    expect(primeira.resultados[0]?.situacao).toBe('descartada');
+    expect(segunda.resultados).toEqual(primeira.resultados);
+    expect(s.logAuditoria).toHaveLength(1);
+  });
+
+  it('reenvio de uma versão já gravada e alterada depois em outro aparelho: recebe a versão atual, sem nada novo no log', () => {
+    const s = comProposta();
+    const daAna = operacao('Proposta', proposta('p1', 'i1', T1, { valor_total: 22000 }), T0);
+    push(s, ANA, daAna); // gravada, mas a resposta se perde
+    // O Bruno baixa a versão da Ana e edita em cima dela.
+    push(s, BRUNO, operacao('Proposta', proposta('p1', 'i1', T2, { valor_total: 24500 }, TECNICO_BRUNO), T1));
+    const reenvio = push(s, ANA, daAna);
+    expect(reenvio.resultados[0]).toMatchObject({ situacao: 'descartada', versaoServidor: { updatedBy: TECNICO_BRUNO } });
+    expect(reenvio.resultados[0]).toMatchObject({ mensagem: expect.stringContaining('já tinha chegado ao servidor') });
+    expect(s.obter('Proposta', 'p1')?.dados.valor_total).toBe(24500);
+    expect(s.logAuditoria).toEqual([]);
+  });
+});
+
 describe('servidor de referência — pull e log de sincronização', () => {
   it('o pull devolve só o que mudou desde o último cursor', () => {
     const s = comProposta();
@@ -119,10 +168,10 @@ describe('servidor de referência — pull e log de sincronização', () => {
 
   it('cada push e cada pull ficam no log de sincronização (RNF11)', () => {
     const s = comProposta();
-    s.pull(ANA, { cursor: null, idDispositivo: 'aparelho-1' });
+    s.pull(ANA, { cursor: null, idDispositivo: 'celular-ana' });
     expect(s.logSincronizacao.map((l) => [l.tipo, l.status, l.qtdRegistros, l.idDispositivo])).toEqual([
-      ['Push', 'Sucesso', 3, 'aparelho-1'],
-      ['Pull', 'Sucesso', 3, 'aparelho-1'],
+      ['Push', 'Sucesso', 3, 'celular-ana'],
+      ['Pull', 'Sucesso', 3, 'celular-ana'],
     ]);
   });
 });

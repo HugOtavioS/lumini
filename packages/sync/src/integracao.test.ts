@@ -153,6 +153,26 @@ describe('SCRUM-86 — offline → reconexão → sincronização automática', 
     expect(await ana.fila.listar()).toEqual([]);
   });
 
+  it('se a resposta se perde e a técnica edita de novo antes do reenvio, não aparece conflito com ela mesma', async () => {
+    const ana = await aparelho('ana', TECNICO_ANA);
+    await orcamentoCompleto(ana, '2026-10-18T14:00:00.000Z');
+    await ana.fila.processar();
+    const dados = (await ana.registro('Proposta', 'pro-1'))!.versao.dados;
+
+    await ana.salvar('Proposta', 'pro-1', { ...dados, valor_total: 22000 }, '2026-10-18T14:05:00.000Z');
+    rede.perderProximaResposta = true;
+    await ana.fila.processar(); // o servidor grava a edição, mas a resposta se perde
+    await ana.salvar('Proposta', 'pro-1', { ...dados, valor_total: 22500 }, '2026-10-18T14:06:00.000Z');
+    await ana.fila.retentarAgora();
+
+    expect(servidor.obter('Proposta', 'pro-1')?.dados.valor_total).toBe(22500);
+    expect(ana.eventos.at(-1)).toMatchObject({ tipo: 'sincronizado', conflito: false });
+    expect(servidor.logAuditoria).toEqual([]);
+    await ana.puxar();
+    expect(ana.mensagens).toEqual([]);
+    expect((await ana.registro('Proposta', 'pro-1'))?.versao).toEqual(servidor.obter('Proposta', 'pro-1'));
+  });
+
   it('RN07: a proposta em elaboração fica só no aparelho; ao ser gerada, sobe', async () => {
     const ana = await aparelho('ana', TECNICO_ANA);
     await ana.salvar('Cliente', 'cli-1', { id_cliente: 'cli-1', nome: 'Maria Souza' }, '2026-10-18T14:00:00.000Z');
@@ -262,6 +282,46 @@ describe('SCRUM-86 + SCRUM-83 — o mesmo registro editado offline em dois apare
       expect.objectContaining({ entidade: 'Proposta', campo: 'valor_total', valorAnterior: '22000', valorNovo: '24500', origem: 'API' }),
     ]);
     expect(await ana.fila.listar()).toEqual([]);
+  });
+
+  it('se a resposta do descarte se perde, o reenvio recebe a mesma resposta e o log não se repete', async () => {
+    const { ana, bruno } = await cenario();
+    await bruno.salvar('Proposta', 'pro-1', comValor(24500), '2026-10-18T14:10:00.000Z');
+    await ana.salvar('Proposta', 'pro-1', comValor(22000), '2026-10-18T14:05:00.000Z');
+    await bruno.conectar();
+    rede.perderProximaResposta = true;
+    await ana.conectar(); // o servidor descarta a edição da Ana, mas a resposta se perde
+    await ana.fila.retentarAgora();
+
+    expect(servidor.logAuditoria).toHaveLength(1);
+    expect(ana.mensagens).toHaveLength(1);
+    expect(ana.mensagens[0]).toContain('não foi aplicada porque já havia uma versão mais recente no servidor');
+    expect((await ana.registro('Proposta', 'pro-1'))?.versao).toEqual(servidor.obter('Proposta', 'pro-1'));
+    expect(await ana.fila.listar()).toEqual([]);
+  });
+
+  it('se a resposta se perde e outro técnico altera o registro antes do reenvio, o aparelho recebe a versão atual, sem conflito falso', async () => {
+    const { ana, bruno } = await cenario();
+    await ana.salvar('Proposta', 'pro-1', comValor(22000), '2026-10-18T14:05:00.000Z');
+    rede.perderProximaResposta = true;
+    await ana.conectar(); // o servidor grava a edição da Ana, mas a resposta se perde
+
+    // O Bruno baixa a versão da Ana e edita em cima dela.
+    await bruno.conectar();
+    await bruno.puxar();
+    expect((await bruno.registro('Proposta', 'pro-1'))?.versao.dados.valor_total).toBe(22000);
+    await bruno.salvar('Proposta', 'pro-1', comValor(24500), '2026-10-18T14:10:00.000Z');
+    await bruno.fila.processar();
+
+    await ana.fila.retentarAgora(); // o reenvio da Ana chega depois
+    const final = servidor.obter('Proposta', 'pro-1');
+    expect(final?.dados.valor_total).toBe(24500);
+    expect(servidor.logAuditoria).toEqual([]);
+    expect(ana.eventos.at(-1)).toMatchObject({ tipo: 'substituido', aindaPendente: false });
+    expect(ana.mensagens).toEqual([
+      'Sua alteração na proposta já tinha chegado ao servidor, e depois disso houve uma alteração mais recente, feita em outro aparelho. O aparelho recebeu a versão atual.',
+    ]);
+    expect((await ana.registro('Proposta', 'pro-1'))?.versao).toEqual(final);
   });
 
   it('a regra não depende de quem reconecta primeiro: nos dois casos o servidor fica com a edição mais recente', async () => {

@@ -12,7 +12,12 @@
  * 3. RN07: o técnico só envia proposta "Gerada" ou posterior; o gestor (web)
  *    pode gravar qualquer status, menos "Em elaboração";
  * 4. o registro pai já existe (senão, recusa retentável: ele pode chegar depois);
- * 5. resolução de conflito (SCRUM-83), com Log de Auditoria e aviso.
+ * 5. reenvio (a resposta anterior se perdeu): a mesma versão, vinda do mesmo
+ *    aparelho, não gera nada novo, nem no Log de Auditoria nem em avisos;
+ * 6. resolução de conflito (SCRUM-83), com Log de Auditoria e aviso.
+ *
+ * Para as regras 5 e 6, o servidor guarda qual aparelho gravou cada registro e
+ * qual foi o último envio de cada aparelho para cada registro.
  *
  * Simplificações: o pull devolve todos os registros sincronizáveis da
  * empresa (a API filtra por papel e por técnico), e não há autenticação.
@@ -35,8 +40,8 @@ import {
   type ResultadoOperacao,
   type VersaoRegistro,
 } from '../contrato';
-import { resolverConflito } from '../conflito/resolverConflito';
-import { gerarIdPadrao, isoDeMs, msDeIso } from '../util';
+import { mensagemReenvioSuperado, resolverConflito } from '../conflito/resolverConflito';
+import { gerarIdPadrao, isoDeMs, jsonEstavel, msDeIso } from '../util';
 
 export interface SessaoServidor {
   idUsuario: string;
@@ -55,10 +60,28 @@ interface Guardado {
   versao: VersaoRegistro;
   /** Ordem de gravação, usada como cursor do pull. */
   seq: number;
+  /** Aparelho que gravou a versão atual (`null` se a requisição não informou). */
+  idDispositivo: string | null;
+}
+
+/** Último envio de um aparelho para um registro, para reconhecer o reenvio quando a resposta se perde. */
+interface UltimoEnvio {
+  impressao: string;
+  /** Mensagem da resposta quando a alteração foi descartada pelo last-write-wins; `null` quando foi gravada. */
+  mensagemDescarte: string | null;
 }
 
 function chave(entidade: EntidadeSincronizavel, id: string): string {
   return `${entidade}:${id}`;
+}
+
+/** Identifica uma versão enviada: o reenvio de uma resposta perdida chega igual. */
+function impressaoDe(versao: VersaoRegistro): string {
+  return jsonEstavel({ updatedAt: versao.updatedAt, updatedBy: versao.updatedBy, dados: versao.dados });
+}
+
+function mesmoConteudo(a: VersaoRegistro, b: VersaoRegistro): boolean {
+  return a.updatedBy === b.updatedBy && jsonEstavel(a.dados) === jsonEstavel(b.dados);
 }
 
 function rejeitada(op: OperacaoSync, codigo: CodigoRejeicao, mensagem: string, retentavel = false): ResultadoOperacao {
@@ -83,6 +106,8 @@ export class ServidorSincronizacaoMemoria {
   readonly logAuditoria: RegistroAuditoria[] = [];
   readonly logSincronizacao: RegistroLogSincronizacao[] = [];
   private readonly registros = new Map<string, Guardado>();
+  /** Chave: `idDispositivo|entidade:id`. */
+  private readonly ultimosEnvios = new Map<string, UltimoEnvio>();
   private readonly avisosPendentes: AvisoSobrescrita[] = [];
   private seq = 0;
   private readonly relogio: () => number;
@@ -98,14 +123,15 @@ export class ServidorSincronizacaoMemoria {
   /** POST /sync/push */
   push(sessao: SessaoServidor, requisicao: RequisicaoPush): RespostaPush {
     const agora = this.relogio();
+    const idDispositivo = typeof requisicao?.idDispositivo === 'string' && requisicao.idDispositivo !== '' ? requisicao.idDispositivo : null;
     const ordem = (op: OperacaoSync) => (ehEntidadeSincronizavel(op?.entidade) ? ORDEM_DEPENDENCIA[op.entidade] : 99);
     const operacoes = Array.isArray(requisicao?.operacoes) ? [...requisicao.operacoes].sort((a, b) => ordem(a) - ordem(b)) : [];
-    const resultados = operacoes.map((op) => this.aplicar(sessao, op, agora));
+    const resultados = operacoes.map((op) => this.aplicar(sessao, idDispositivo, op, agora));
     const recusadas = resultados.filter((r) => r.situacao === 'rejeitada').length;
     this.logSincronizacao.push({
       idLogSync: this.gerarId(),
       idUsuario: sessao.idUsuario,
-      idDispositivo: requisicao?.idDispositivo ?? 'desconhecido',
+      idDispositivo: idDispositivo ?? 'desconhecido',
       dataHora: isoDeMs(agora),
       tipo: 'Push',
       status: 'Sucesso',
@@ -148,7 +174,7 @@ export class ServidorSincronizacaoMemoria {
     return [...this.registros.values()].filter((g) => g.entidade === entidade).sort((a, b) => a.seq - b.seq).map((g) => g.versao);
   }
 
-  private aplicar(sessao: SessaoServidor, op: OperacaoSync, agora: number): ResultadoOperacao {
+  private aplicar(sessao: SessaoServidor, idDispositivo: string | null, op: OperacaoSync, agora: number): ResultadoOperacao {
     const problema = problemasDaOperacao(op);
     if (problema) return rejeitada(op, 'DADOS_INVALIDOS', problema);
     const { entidade, versao } = op;
@@ -156,7 +182,8 @@ export class ServidorSincronizacaoMemoria {
     if (versao.idEmpresa !== sessao.idEmpresa) {
       return rejeitada(op, 'OUTRA_EMPRESA', 'O registro pertence a outra empresa.');
     }
-    const guardado = this.registros.get(chave(entidade, versao.id));
+    const chaveRegistro = chave(entidade, versao.id);
+    const guardado = this.registros.get(chaveRegistro);
     if (guardado && guardado.versao.idEmpresa !== sessao.idEmpresa) {
       return rejeitada(op, 'OUTRA_EMPRESA', 'O registro pertence a outra empresa.');
     }
@@ -182,6 +209,21 @@ export class ServidorSincronizacaoMemoria {
       }
     }
 
+    // Reenvio de uma versão que este aparelho já tinha mandado (a resposta se
+    // perdeu) e que não é mais a do servidor: ela já foi decidida da primeira
+    // vez. O aparelho recebe a versão atual, sem nada novo no log nem avisos.
+    const chaveEnvio = idDispositivo === null ? null : `${idDispositivo}|${chaveRegistro}`;
+    const impressao = impressaoDe(versao);
+    const envioAnterior = chaveEnvio === null ? undefined : this.ultimosEnvios.get(chaveEnvio);
+    if (guardado && envioAnterior?.impressao === impressao && !mesmoConteudo(guardado.versao, versao)) {
+      return {
+        idOperacao: op.idOperacao,
+        situacao: 'descartada',
+        versaoServidor: guardado.versao,
+        mensagem: envioAnterior.mensagemDescarte ?? mensagemReenvioSuperado(entidade),
+      };
+    }
+
     const r = resolverConflito({
       entidade,
       atual: guardado?.versao ?? null,
@@ -189,6 +231,7 @@ export class ServidorSincronizacaoMemoria {
       baseUpdatedAt: op.baseUpdatedAt ?? null,
       agora,
       origem: sessao.papel === 'Gestor' ? 'Web' : 'Mobile',
+      atualGravadaPeloMesmoAparelho: idDispositivo !== null && guardado?.idDispositivo === idDispositivo,
       gerarId: this.gerarId,
       ...(this.toleranciaRelogioMs !== undefined && { toleranciaRelogioMs: this.toleranciaRelogioMs }),
     });
@@ -196,18 +239,18 @@ export class ServidorSincronizacaoMemoria {
 
     switch (r.decisao) {
       case 'repetida':
+        if (chaveEnvio) this.ultimosEnvios.set(chaveEnvio, { impressao, mensagemDescarte: null });
         return { idOperacao: op.idOperacao, situacao: 'aplicada', versaoAceita: r.vencedora, conflito: false, avisos: [] };
-      case 'manter':
+      case 'manter': {
         // Quem enviou fica sabendo na própria resposta.
-        return {
-          idOperacao: op.idOperacao,
-          situacao: 'descartada',
-          versaoServidor: r.vencedora,
-          mensagem: r.aviso?.mensagem ?? 'Havia uma versão mais recente no servidor.',
-        };
+        const mensagem = r.aviso?.mensagem ?? 'Havia uma versão mais recente no servidor.';
+        if (chaveEnvio) this.ultimosEnvios.set(chaveEnvio, { impressao, mensagemDescarte: mensagem });
+        return { idOperacao: op.idOperacao, situacao: 'descartada', versaoServidor: r.vencedora, mensagem };
+      }
       default:
         this.seq += 1;
-        this.registros.set(chave(entidade, versao.id), { entidade, versao: r.vencedora, seq: this.seq });
+        this.registros.set(chaveRegistro, { entidade, versao: r.vencedora, seq: this.seq, idDispositivo });
+        if (chaveEnvio) this.ultimosEnvios.set(chaveEnvio, { impressao, mensagemDescarte: null });
         // Quem teve a alteração sobrescrita fica sabendo no próximo pull.
         if (r.aviso) this.avisosPendentes.push(r.aviso);
         return { idOperacao: op.idOperacao, situacao: 'aplicada', versaoAceita: r.vencedora, conflito: r.conflito, avisos: r.observacoes };

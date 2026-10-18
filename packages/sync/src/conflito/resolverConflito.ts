@@ -11,9 +11,13 @@
  * 3. **Reenvio:** mesmo conteúdo e mesmo autor do que já está no servidor →
  *    nada muda (o aparelho não recebeu a confirmação e mandou de novo).
  * 4. **Edição normal:** o aparelho editou exatamente a versão que está no
- *    servidor (versão-base igual ao `updated_at` atual) → aplica, sem
- *    conflito. Aqui a ordem dos fatos é conhecida, então o relógio do aparelho
- *    não decide nada.
+ *    servidor (versão-base igual ao `updated_at` atual), ou a versão que está
+ *    no servidor foi gravada por ele mesmo → aplica, sem conflito. O segundo
+ *    caso acontece quando a resposta de um envio se perde e o técnico edita de
+ *    novo antes do reenvio: a versão-base que o aparelho manda ficou para trás,
+ *    mas as edições de um aparelho acontecem em sequência, então a nova parte
+ *    da anterior. Aqui a ordem dos fatos é conhecida, então o relógio do
+ *    aparelho não decide nada.
  * 5. **Edição concorrente:** o registro mudou no servidor depois que o
  *    aparelho o baixou → **last-write-wins**: vence o `updated_at` mais
  *    recente; no empate, fica a versão do servidor. Cada campo sobrescrito
@@ -51,6 +55,11 @@ export interface EntradaConflito {
   agora: Date | string | number;
   /** De onde veio a versão recebida. */
   origem: 'Mobile' | 'Web';
+  /**
+   * `true` quando a versão que está no servidor foi gravada pelo mesmo aparelho
+   * que está enviando agora (o servidor guarda o `idDispositivo` de quem gravou).
+   */
+  atualGravadaPeloMesmoAparelho?: boolean;
   toleranciaRelogioMs?: number;
   gerarId?: () => string;
 }
@@ -77,6 +86,17 @@ const ONDE: Readonly<Record<EntidadeSincronizavel, string>> = {
   Proposta: 'na proposta',
   SolicitacaoUpgrade: 'na solicitação de upgrade',
 };
+
+/**
+ * Resposta ao reenvio de uma versão que já tinha chegado ao servidor (a resposta
+ * anterior se perdeu) e que depois foi substituída por outra edição.
+ */
+export function mensagemReenvioSuperado(entidade: EntidadeSincronizavel): string {
+  return (
+    `Sua alteração ${ONDE[entidade]} já tinha chegado ao servidor, e depois disso houve uma alteração mais recente, ` +
+    'feita em outro aparelho. O aparelho recebeu a versão atual.'
+  );
+}
 
 /** Data e hora de Brasília (UTC−3, sem horário de verão desde 2019), ex.: "18/10/2026 às 09:05". */
 export function formatarDataHoraBrasilia(ms: number): string {
@@ -131,9 +151,9 @@ export function resolverConflito(entrada: EntradaConflito): ResultadoConflito {
     return { decisao: 'repetida', conflito: false, vencedora: atual, auditoria: [], aviso: null, observacoes };
   }
 
-  // 4. Edição sobre a versão que está no servidor
+  // 4. Edição sobre a versão que está no servidor (ou sobre a que o próprio aparelho gravou)
   const baseMs = entrada.baseUpdatedAt === null ? null : msDeIso(entrada.baseUpdatedAt);
-  if (baseMs !== null && baseMs === atualMs) {
+  if ((baseMs !== null && baseMs === atualMs) || entrada.atualGravadaPeloMesmoAparelho === true) {
     if (recebidaMs <= atualMs) {
       observacoes.push('O relógio do aparelho estava atrasado; a alteração foi registrada logo depois da versão anterior.');
       recebidaMs = atualMs + 1;
