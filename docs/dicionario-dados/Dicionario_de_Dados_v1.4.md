@@ -1,12 +1,18 @@
 **LUMINI** — **DICIONÁRIO DE DADOS**
 
-Versão 1.3 — Setembro de 2026
+Versão 1.4 — Outubro de 2026
 
 # 1. Introdução e Convenções
 
 Este dicionário descreve, campo a campo, os dados persistidos pelo Lumini no banco local do aplicativo (SQLite com SQLCipher) e no banco central (PostgreSQL no Amazon RDS). Ele segue o Documento de Arquitetura de Software (DAS) v1.2 e o Documento de Escopo do MVP v1.4.
 
-## 1.1 Alterações desta Versão (v1.3)
+## 1.1 Alterações desta Versão (v1.4)
+
+Tabelas e campos usados pelo pacote de sincronização `packages/sync` (Épico 4).
+
+- **Fila de Sincronização (nova, só no banco local):** uma linha por registro com alteração ainda não confirmada pelo servidor, com a versão-base usada para detectar conflito, o número de tentativas e a hora da próxima tentativa (SCRUM-82). Seção 8.3.
+
+## 1.2 Alterações da v1.3
 
 Campos exigidos pelo pacote de cálculo `packages/domain` (SCRUM-8, SCRUM-76, SCRUM-392 e SCRUM-395). Todos os campos novos são opcionais no banco (Nullable), para não quebrar registros existentes; a obrigatoriedade por categoria é validada pelo pacote de domínio e pelo formulário web (RF25).
 
@@ -15,7 +21,7 @@ Campos exigidos pelo pacote de cálculo `packages/domain` (SCRUM-8, SCRUM-76, SC
 - **Medição do Telhado e Simulação de Sombreamento:** sem colunas novas; a v1.3 detalha a regra do `calibrada` (protocolo do SCRUM-79) e o formato JSON de `obstaculos` e `sombreamento_mensal` (SCRUM-81).
 - **Localidade Climática:** `hsp_mensal` (HSP de cada mês, para a geração mês a mês); fonte recomendada para a carga da contingência: Atlas Brasileiro de Energia Solar 2017 (INPE/LABREN), um registro por município do IBGE.
 
-## 1.2 Alterações da v1.2
+## 1.3 Alterações da v1.2
 
 - Novas tabelas: Empresa, Usuário, Assinatura, Solicitação de Upgrade, Instalação, Concessionária, Parâmetros Técnicos, Simulação de Sombreamento, Item da Proposta, Log de Auditoria e Log de Sincronização.
 - Dados de endereço e dados elétricos saíram de Cliente e foram para Instalação; `tipo_telhado` foi para Instalação; `tarifa_kwh` passou a ser Decimal.
@@ -24,7 +30,7 @@ Campos exigidos pelo pacote de cálculo `packages/domain` (SCRUM-8, SCRUM-76, SC
 - Proposta ganhou técnico responsável, empresa, geração estimada, economia em 25 anos, materiais elétricos, margem e versão; `impacto_ambiental` virou `co2_evitado_kg_ano` (numérico).
 - `status_proposta` e `sync_status` foram separados.
 
-## 1.3 Convenções
+## 1.4 Convenções
 
 | Convenção | Regra |
 |---|---|
@@ -370,3 +376,26 @@ Onde: L/N (gerado no dispositivo para ajustes de preço e enviado na sincroniza�
 | mensagem_erro | String | Nullable | Preenchido em falhas |
 
 Onde: L/N.
+
+## 8.3 Fila de Sincronização
+
+Uma linha por registro com alteração que ainda não foi confirmada pelo servidor (SCRUM-82). Editar de novo um registro pendente atualiza a mesma linha. A linha some quando o servidor confirma; enquanto existir, o `sync_status` do registro é o `situacao` daqui.
+
+| Campo | Tipo | Restrições | Origem / Observação |
+|---|---|---|---|
+| id_operacao | String | PK | `<entidade>:<id do registro>` |
+| entidade | Enum (Cliente, Instalacao, Medicao, SimulacaoSombreamento, Proposta, SolicitacaoUpgrade) | Not Null | Registro a enviar |
+| id_registro | UUID | Not Null, Unique com `entidade` | Registro a enviar |
+| prioridade | Integer | Not Null | Ordem de dependência (DAS 4.1): cliente 1 → solicitação de upgrade 6 |
+| payload | JSON | Not Null | Última versão do registro (a Proposta leva os itens junto) |
+| base_updated_at | Timestamp | Nullable | `updated_at` do servidor que o aparelho conhecia antes da primeira edição offline; nulo para registro criado no aparelho. Usado na detecção de conflito (SCRUM-83) |
+| situacao | Enum (Pendente, Erro) | Not Null, default Pendente | Vira o `sync_status` do registro (RF16) |
+| retentar_automaticamente | Boolean | Not Null, default true | `false` quando a API recusou o registro: espera ação do técnico |
+| tentativas | Integer | Not Null, ≥ 0 | Falhas seguidas (backoff exponencial) |
+| proxima_tentativa_em | Timestamp (ms) | Not Null | Quando a fila tenta de novo |
+| ultima_tentativa_em | Timestamp (ms) | Nullable | Mostrado ao tocar no indicador (RF16) |
+| ultimo_erro | String | Nullable | Mensagem da última falha |
+| revisao | Integer | Not Null, default 1 | Cresce a cada edição; evita perder uma edição feita durante o envio |
+| criado_em / atualizado_em | Timestamp (ms) | Not Null | Sistema |
+
+Onde: L (somente local).

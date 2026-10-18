@@ -82,7 +82,7 @@ lumini/
 
 Em definição junto com a escolha do framework web (NOVO-101) e da hospedagem AWS (NOVO-102). Este README será atualizado com instruções de instalação e execução (mobile, web e API) conforme cada parte for implementada.
 
-Já dá para rodar o pacote de cálculo (`packages/domain`), com Node.js 20 ou mais recente:
+Já dá para rodar os pacotes compartilhados (`packages/domain` e `packages/sync`), com Node.js 22.13 ou mais recente (recomendado: 24 LTS):
 
 ```bash
 npm ci                  # instala as dependências de todos os pacotes (npm workspaces)
