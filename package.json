@@ -10,9 +10,10 @@
   "scripts": {
     "test": "npm run typecheck --workspaces --if-present && npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test:detalhado": "npm run test:detalhado -w @lumini/domain",
+    "test:detalhado": "npm run test:detalhado --workspaces --if-present",
     "demo": "npm run demo -w @lumini/domain",
-    "demo:sem-internet": "npm run demo:sem-internet -w @lumini/domain"
+    "demo:sem-internet": "npm run demo:sem-internet -w @lumini/domain",
+    "demo:sync": "npm run demo -w @lumini/sync"
   },
   "engines": {
     "node": ">=22.13"

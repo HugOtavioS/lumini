@@ -15,7 +15,7 @@
     "test:watch": "vitest",
     "test:detalhado": "vitest run --reporter=verbose",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.testes.json",
-    "demo": "tsx scripts/demonstracao.ts"
+    "demo": "tsx --disable-warning=ExperimentalWarning scripts/demonstracao.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",

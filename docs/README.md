@@ -18,6 +18,7 @@
 
 - [`arquitetura/Lumini_Arquitetura_v1.2.md`](arquitetura/Lumini_Arquitetura_v1.2.md) — Documento de Arquitetura de Software (DAS)
 - [`arquitetura/Stacks_Mobile_v1.1.md`](arquitetura/Stacks_Mobile_v1.1.md) — documentação das stacks do aplicativo mobile (React Native + ViroReact)
+- [`arquitetura/Sincronizacao_Offline_v1.0.md`](arquitetura/Sincronizacao_Offline_v1.0.md) — fila de sincronização, conflito de edição offline e limite de armazenamento local (SCRUM-82, SCRUM-83, SCRUM-86 e SCRUM-87)
 
 ## Dados
 
