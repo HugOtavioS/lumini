@@ -25,7 +25,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22.13+ por causa do node:sqlite usado nos testes do packages/sync; 24 é a LTS atual.
+          node-version: 24
 
       - name: Verificar se já existe package.json na raiz
         id: check-root
