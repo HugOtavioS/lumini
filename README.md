@@ -1,4 +1,10 @@
-# ☀️ Lumini - UNISA TECNOLOGIA Order System
+# ☀️ Lumini — dimensionamento e proposta solar offline-first
+
+> **Status:** em desenvolvimento — Sprint 0 concluída (descoberta, escopo e arquitetura). Implementação do MVP em andamento.
+> Projeto Integrador Interdisciplinar · Faculdade SENAI · metodologia Scrum com backlog e sprints no Jira.
+
+**Meu papel:** Product Owner e Scrum Master do projeto, responsável pelo desenvolvimento do backend e pelo design do projeto.
+
 
 **Demanda:** Otimização no Processo de Instalação de Placas Solares.
 **Empresa / Área:** UNISA TECNOLOGIA / Faculdade SENAI Fatesg / Goiânia.
@@ -110,3 +116,13 @@ O projeto foi estruturado para garantir acesso rápido e resiliência offline:
 
 
 ---
+
+## 🗺️ Roadmap
+
+- [x] Sprint 0 — entendimento do problema, escopo do MVP e decisões de arquitetura
+- [ ] Definição final da stack mobile e do back-end de sincronização
+- [ ] Motor de cálculo: HSP, perdas, potência (kWp) e seleção de kit
+- [ ] Banco de preços local e funcionamento offline
+- [ ] Viabilidade financeira: payback, ROI e impacto ambiental
+- [ ] Geração da proposta em PDF e compartilhamento por WhatsApp/e-mail
+
