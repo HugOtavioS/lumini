@@ -99,7 +99,7 @@ O projeto foi estruturado para garantir acesso rápido e resiliência offline:
 * Funcionamento *offline* com interface simples (sem necessidade de treinamento).
 
 
-* **Recursos de Realidade Aumentada:** Funcionalidade de medição/visualização 3D do telhado, como mode sem RA par dispositivos sem suporte.
+* **Recursos de Realidade Aumentada:** Funcionalidade de medição/visualização 3D do telhado, com modo sem RA par dispositivos sem suporte.
 
 
 **Fora do Escopo (Não incluído no MVP):**
