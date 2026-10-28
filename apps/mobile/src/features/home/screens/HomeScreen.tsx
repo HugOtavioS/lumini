@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Card, IconBox, ProgressBar, Screen } from '@/components';
 import { PLAN_WARNING_RATIO } from '@/domain/parameters';
+import { isSyncable } from '@/domain/services/proposalRules';
 import { UpgradeRequestedSheet } from '@/features/plan/UpgradeRequestedSheet';
 import { ProposalCard } from '@/features/proposal/components/ProposalCard';
 import { useAppStore } from '@/store/AppStore';
@@ -20,7 +21,10 @@ function isThisMonth(iso: string | undefined): boolean {
 }
 
 export default function HomeScreen() {
-  const { technician, isOnline, proposals, planUsed, planLimit, requestUpgrade } = useAppStore();
+  const { technician, isOnline, proposals, planUsed, planLimit, requestUpgrade, isSyncing } = useAppStore();
+  // SCRUM-84: pendências e erros no indicador global.
+  const pendingSync = proposals.filter((p) => p.syncStatus !== 'sincronizado' && isSyncable(p.status));
+  const syncErrors = pendingSync.filter((p) => p.syncStatus === 'erro').length;
   const draft = useDraft();
   const [upgradeSheet, setUpgradeSheet] = useState({ visible: false, alreadyPending: false });
 
@@ -74,8 +78,28 @@ export default function HomeScreen() {
     </View>
   );
 
+  const syncStrip =
+    pendingSync.length > 0 || isSyncing ? (
+      <Pressable
+        onPress={() => router.navigate('/historico')}
+        accessibilityRole="button"
+        style={[styles.syncStrip, syncErrors > 0 && styles.syncStripError]}
+      >
+        <View style={[styles.connectionDot, { backgroundColor: syncErrors > 0 ? semantic.error : orange[500] }]} />
+        <AppText variant="bodySmall" weight="semibold" style={styles.flex}>
+          {isSyncing
+            ? 'Sincronizando...'
+            : syncErrors > 0
+              ? `${syncErrors} proposta${syncErrors > 1 ? 's' : ''} com erro de sincronização`
+              : `${pendingSync.length} proposta${pendingSync.length > 1 ? 's' : ''} aguardando sincronização`}
+        </AppText>
+        <ArrowRight size={16} color={navy[500]} />
+      </Pressable>
+    ) : null;
+
   return (
     <Screen header={header} topColor={navy[900]} statusBarStyle="light" inTabs>
+      {syncStrip}
       {/* RF24 / RN05: consumo do limite mensal da empresa. */}
       <View style={[styles.plan, planRatio >= PLAN_WARNING_RATIO && styles.planWarning]}>
         <IconBox icon={Zap} size={40} background={orange[100]} />
@@ -170,6 +194,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   greeting: { flex: 1 },
+  flex: { flex: 1 },
+  syncStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: radius.lg,
+    backgroundColor: orange[50],
+    borderWidth: 1,
+    borderColor: orange[200],
+  },
+  syncStripError: { backgroundColor: semantic.errorSoft, borderColor: semantic.error },
   connection: {
     flexDirection: 'row',
     alignItems: 'center',

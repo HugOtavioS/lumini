@@ -6,4 +6,7 @@ export const mockTechnician: Technician = {
   email: 'carlos@lumini.com',
   role: 'tecnico',
   companyId: 'emp-001',
+  companyName: 'Solar Vale Energia',
+  phone: '(12) 99777-1234',
+  photoUri: null,
 };

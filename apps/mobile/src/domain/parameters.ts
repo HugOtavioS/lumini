@@ -21,6 +21,16 @@ export const technicalParameters = {
 
 export const commercialParameters = {
   electricalMaterialsPerKwp: 250,
+  /**
+   * SCRUM-375 — material elétrico complementar. Os R$/kWp acima cobrem até esta
+   * distância entre o telhado e o quadro de carga; o que passar disso é cobrado
+   * por metro (cabo CA, eletroduto e fixação). Valores provisórios, a validar
+   * com a empresa e configuráveis pelo gestor (RF29).
+   */
+  includedPanelDistanceM: 10,
+  extraCablePerMeter: 35,
+  /** Adequação do quadro de carga (disjuntores, DPS, barramento), quando necessária. */
+  panelUpgradeFee: 1200,
   laborPerKwp: 800,
   projectAndApprovalFee: 1200,
   freightFee: 800,
@@ -29,6 +39,8 @@ export const commercialParameters = {
   /** Limite de ajuste de preço por item na proposta (RN06). */
   priceAdjustLimitPct: 15,
   defaultValidityDays: 15,
+  /** Condição de pagamento sugerida (SCRUM-399). */
+  maxInstallments: 24,
 } as const;
 
 export const financialParameters = {

@@ -55,6 +55,7 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="instalacao" />
         <Stack.Screen name="proposta/[id]" />
+        <Stack.Screen name="conta" />
       </Stack.Protected>
     </Stack>
   );

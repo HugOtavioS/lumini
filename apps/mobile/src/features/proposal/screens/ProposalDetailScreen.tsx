@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Copy, Ellipsis, MessageCircle, Pencil, RefreshCw } from 'lucide-react-native';
+import { Copy, Ellipsis, Mail, MessageCircle, Pencil, RefreshCw } from 'lucide-react-native';
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -15,7 +15,8 @@ import {
   Screen,
   SyncStatusBadge,
 } from '@/components';
-import { categoryLabels } from '@/domain/labels';
+import { categoryLabels, connectionTypeLabels, describePaymentCondition, tariffModalityLabels } from '@/domain/labels';
+import { canTechnicianEdit } from '@/domain/services/proposalRules';
 import { itemTotal } from '@/domain/services/pricing';
 import { useAppStore } from '@/store/AppStore';
 import { useDraft } from '@/store/DraftStore';
@@ -23,7 +24,7 @@ import { colors, navy, orange, radius, semantic } from '@/theme';
 import { addDays, formatCurrency, formatDate, formatElapsed, formatNumber } from '@/utils/format';
 import { notify } from '@/utils/notify';
 import { duplicateProposal, editProposal } from '../editProposal';
-import { shareViaWhatsApp } from '../share';
+import { shareChannels, shareProposal, shareViaEmail, shareViaWhatsApp } from '../share';
 
 // Detalhe da Proposta (RF13, passo 4).
 export default function ProposalDetailScreen() {
@@ -62,6 +63,15 @@ export default function ProposalDetailScreen() {
   const modules = proposal.items.filter((i) => i.category === 'modulo');
   const inverter = proposal.items.find((i) => i.category === 'inversor');
   const services = pricing.electricalMaterials + pricing.labor + pricing.projectAndApproval + pricing.freight + pricing.margin;
+  const channels = shareChannels(proposal);
+  const addressLine = [
+    `${installation.address}${installation.number ? `, ${installation.number}` : ''}`,
+    installation.district,
+    `${installation.city}, ${installation.state}`,
+    installation.cep ? `CEP ${installation.cep}` : '',
+  ]
+    .filter(Boolean)
+    .join(' - ');
 
   async function handleSync() {
     setMenuOpen(false);
@@ -82,7 +92,7 @@ export default function ProposalDetailScreen() {
             onPress={() => notify('PDF da proposta', 'A visualização do PDF será integrada ao template oficial da proposta (RF12).')}
           />
           <Button label="Duplicar Proposta" variant="outline" icon={Copy} onPress={() => duplicateProposal(proposal, draft.load)} />
-          <Button label="Reenviar Proposta" variant="outlineDark" onPress={() => shareViaWhatsApp(proposal)} />
+          <Button label="Reenviar Proposta" variant="outlineDark" onPress={() => shareProposal(proposal)} />
         </>
       }
       contentStyle={styles.content}
@@ -95,7 +105,7 @@ export default function ProposalDetailScreen() {
           <ProposalStatusBadge status={proposal.status} />
         </View>
         <AppText variant="bodySmall" color={colors.textSecondary}>
-          {installation.address} - {installation.city}, {installation.state}
+          {addressLine}
         </AppText>
         <Divider style={styles.divider} />
         <View style={styles.metaRow}>
@@ -128,6 +138,22 @@ export default function ProposalDetailScreen() {
         <KeyValueRow label="Sombreamento" value={`${proposal.shadingPct}% · perdas ${formatNumber(sizing.losses.totalPct, 0)}%`} />
       </Card>
 
+      {/* SCRUM-371 / SCRUM-375 / SCRUM-400 */}
+      <Card style={styles.card}>
+        <AppText variant="body" weight="bold">
+          Instalação
+        </AppText>
+        <KeyValueRow label="Nº da Instalação (UC)" value={installation.consumerUnit || '—'} />
+        <KeyValueRow label="Modalidade tarifária" value={tariffModalityLabels[installation.tariffModality]} />
+        <KeyValueRow label="Tipo de conexão" value={connectionTypeLabels[installation.connectionType]} />
+        <KeyValueRow label="Disjuntor principal" value={`${installation.mainBreakerAmps} A`} />
+        <KeyValueRow
+          label="Distância telhado–quadro"
+          value={installation.roofToPanelDistanceM != null ? `${formatNumber(installation.roofToPanelDistanceM, 1)} m` : 'Não informada'}
+        />
+        <KeyValueRow label="Adequação do quadro" value={installation.panelUpgradeNeeded ? 'Necessária' : 'Não necessária'} />
+      </Card>
+
       <View style={styles.viability}>
         <AppText variant="body" weight="bold">
           Viabilidade Financeira
@@ -145,6 +171,7 @@ export default function ProposalDetailScreen() {
           <MiniCard label="ROI" value={`${formatNumber(viability.roiPct, 0)}%`} />
         </View>
         <Meta label="Economia em 25 anos" value={formatCurrency(viability.savings25y, 0)} />
+        <Meta label="Condição de pagamento" value={describePaymentCondition(proposal.paymentCondition, pricing.total, formatCurrency)} />
         <Meta
           label="Economia Mensal"
           value={<AppText variant="body" weight="bold" color={semantic.successStrong}>~{formatCurrency(viability.monthlySavings, 0)}/mês</AppText>}
@@ -171,17 +198,30 @@ export default function ProposalDetailScreen() {
       <BottomSheet visible={menuOpen} onClose={() => setMenuOpen(false)}>
         <View style={styles.menu}>
           <MenuItem icon={<RefreshCw size={20} color={navy[700]} />} label={isSyncing ? 'Sincronizando...' : 'Sincronizar agora'} onPress={handleSync} />
+          {channels.whatsapp && (
+            <MenuItem
+              icon={<MessageCircle size={20} color={navy[700]} />}
+              label="Compartilhar via WhatsApp"
+              onPress={() => {
+                setMenuOpen(false);
+                shareViaWhatsApp(proposal);
+              }}
+            />
+          )}
+          {channels.email && (
+            <MenuItem
+              icon={<Mail size={20} color={navy[700]} />}
+              label="Enviar por e-mail"
+              onPress={() => {
+                setMenuOpen(false);
+                shareViaEmail(proposal);
+              }}
+            />
+          )}
+          {/* RN11: o técnico só edita "Em elaboração" e "Reaberta". */}
           <MenuItem
-            icon={<MessageCircle size={20} color={navy[700]} />}
-            label="Compartilhar via WhatsApp"
-            onPress={() => {
-              setMenuOpen(false);
-              shareViaWhatsApp(proposal);
-            }}
-          />
-          <MenuItem
-            icon={<Pencil size={20} color={navy[700]} />}
-            label="Editar proposta"
+            icon={<Pencil size={20} color={canTechnicianEdit(proposal.status) ? navy[700] : navy[300]} />}
+            label={canTechnicianEdit(proposal.status) ? 'Editar proposta' : 'Editar proposta (com o gestor)'}
             onPress={() => {
               setMenuOpen(false);
               editProposal(proposal, draft.load);

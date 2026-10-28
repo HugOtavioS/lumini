@@ -1,19 +1,16 @@
 import { router } from 'expo-router';
 
 import type { Proposal } from '@/domain/entities';
-import { proposalStatusLabels } from '@/domain/labels';
-import { canTechnicianEdit } from '@/domain/services/proposalRules';
+import { technicianEditBlockReason } from '@/domain/services/proposalRules';
 import { notify } from '@/utils/notify';
 
 type LoadDraft = (proposal: Proposal, mode: 'edit' | 'duplicate') => void;
 
 /** RN11: o técnico só edita propostas "Em elaboração" ou "Reaberta". */
 export function editProposal(proposal: Proposal, load: LoadDraft): void {
-  if (!canTechnicianEdit(proposal.status)) {
-    notify(
-      'Edição indisponível',
-      `Propostas com status "${proposalStatusLabels[proposal.status]}" são editadas pelo gestor no painel web.`,
-    );
+  const blockReason = technicianEditBlockReason(proposal.status);
+  if (blockReason) {
+    notify('Edição indisponível', blockReason);
     return;
   }
   load(proposal, 'edit');

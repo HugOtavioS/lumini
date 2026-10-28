@@ -56,4 +56,13 @@ if (!rn11.permitido) {
 
 Exceção: se o conteúdo recebido é igual ao guardado (reenvio de resposta perdida), não é edição e não passa pela RN11. Os cenários estão em `servidor.test.ts` (bloco "RN11") e devem passar contra a API quando ela existir.
 
+### Base de contingência (SCRUM-85)
+
+O app verifica uma vez por dia, quando online, se há versão nova da base de HSP por UF (`apps/mobile/src/data/contingency/contingencyUpdater.ts`). Endpoints esperados:
+
+- `GET /contingencia/versao` → `{ "versao": "2026.10.1", "publicadaEm": "2026-10-20T00:00:00Z" }`
+- `GET /contingencia/:versao` → `{ "versao", "publicadaEm", "hsp": { "SP": { "hsp": 4.9, "latitude": -23.55 }, ... } }` (as 27 UFs)
+
+O app recusa base incompleta ou com HSP fora de 2–8 e continua com a que tem.
+
 > Código ainda não implementado — esta pasta contém apenas este README como marcador da estrutura inicial (Sprint 1).

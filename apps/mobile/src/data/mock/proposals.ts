@@ -42,7 +42,8 @@ interface SeedInput {
   sequence: number;
   name: string;
   whatsapp: string;
-  installation: Omit<Installation, 'roofType' | 'cep' | 'consumerUnit'> & Partial<Installation>;
+  installation: Pick<Installation, 'address' | 'city' | 'state' | 'monthlyConsumptionKwh' | 'tariffPerKwh' | 'connectionType'> &
+    Partial<Installation>;
   areaM2: number;
   items: ProposalItem[];
   status: ProposalStatus;
@@ -54,8 +55,14 @@ interface SeedInput {
 function seed(input: SeedInput): Proposal {
   const installation: Installation = {
     cep: '74000-000',
+    number: 'S/N',
+    district: 'Centro',
     consumerUnit: String(10000000 + input.sequence * 7919),
+    tariffModality: 'convencional',
+    mainBreakerAmps: input.installation.connectionType === 'trifasica' ? 63 : 40,
     roofType: 'ceramica',
+    roofToPanelDistanceM: 8,
+    panelUpgradeNeeded: false,
     ...input.installation,
   };
   const measurement: RoofMeasurement = {
@@ -81,6 +88,7 @@ function seed(input: SeedInput): Proposal {
     items: input.items,
     ...calculation,
     validityDays: 15,
+    paymentCondition: { type: 'parcelado', installments: 12, downPaymentPct: 0 },
     status: input.status,
     syncStatus: input.syncStatus,
     version: 1,
@@ -97,7 +105,7 @@ export const seedProposals: Proposal[] = [
     sequence: 47,
     name: 'Aline de Souza',
     whatsapp: '(62) 99876-5432',
-    installation: { address: 'Rua das Palmeiras, 452', city: 'Goiânia', state: 'GO', monthlyConsumptionKwh: 450, tariffPerKwh: 0.85, connectionType: 'monofasica' },
+    installation: { address: 'Rua das Palmeiras', number: '452', city: 'Goiânia', state: 'GO', monthlyConsumptionKwh: 450, tariffPerKwh: 0.85, connectionType: 'monofasica' },
     areaM2: 45,
     items: [item('mod-cs-550', 8), item('inv-growatt-5k', 1), item('est-ceramica', 8)],
     status: 'aprovada',
@@ -108,7 +116,7 @@ export const seedProposals: Proposal[] = [
     sequence: 46,
     name: 'Condomínio Vista',
     whatsapp: '(62) 3241-7788',
-    installation: { address: 'Av. T-63, 1200', city: 'Goiânia', state: 'GO', monthlyConsumptionKwh: 2600, tariffPerKwh: 0.82, connectionType: 'trifasica', roofType: 'laje' },
+    installation: { address: 'Av. T-63', number: '1200', city: 'Goiânia', state: 'GO', monthlyConsumptionKwh: 2600, tariffPerKwh: 0.82, connectionType: 'trifasica', roofType: 'laje' },
     areaM2: 180,
     items: [item('mod-cs-650', 30), item('inv-huawei-8k', 2), item('est-laje', 30), item('sb-clamper', 2)],
     status: 'em_negociacao',
@@ -119,7 +127,7 @@ export const seedProposals: Proposal[] = [
     sequence: 45,
     name: 'Julia Silveira',
     whatsapp: '(62) 98111-2233',
-    installation: { address: 'Rua 9, 88', city: 'Anápolis', state: 'GO', monthlyConsumptionKwh: 620, tariffPerKwh: 0.87, connectionType: 'bifasica' },
+    installation: { address: 'Rua 9', number: '88', city: 'Anápolis', state: 'GO', monthlyConsumptionKwh: 620, tariffPerKwh: 0.87, connectionType: 'bifasica' },
     areaM2: 50,
     items: [item('mod-jinko-580', 10), item('inv-growatt-6k', 1), item('est-ceramica', 10)],
     status: 'gerada',
@@ -130,7 +138,7 @@ export const seedProposals: Proposal[] = [
     sequence: 44,
     name: 'Marcos Oliveira',
     whatsapp: '(62) 99222-4411',
-    installation: { address: 'Rua C-137, 310', city: 'Goiânia', state: 'GO', monthlyConsumptionKwh: 700, tariffPerKwh: 0.85, connectionType: 'bifasica', roofType: 'fibrocimento' },
+    installation: { address: 'Rua C-137', number: '310', city: 'Goiânia', state: 'GO', monthlyConsumptionKwh: 700, tariffPerKwh: 0.85, connectionType: 'bifasica', roofType: 'fibrocimento' },
     areaM2: 60,
     items: [item('mod-cs-550', 12), item('inv-growatt-6k', 1), item('est-fibrocimento', 12)],
     status: 'aprovada',
@@ -141,7 +149,7 @@ export const seedProposals: Proposal[] = [
     sequence: 43,
     name: 'Roberto Santos',
     whatsapp: '(62) 99655-1020',
-    installation: { address: 'Rua 15, 45', city: 'Aparecida de Goiânia', state: 'GO', monthlyConsumptionKwh: 380, tariffPerKwh: 0.85, connectionType: 'monofasica' },
+    installation: { address: 'Rua 15', number: '45', city: 'Aparecida de Goiânia', state: 'GO', monthlyConsumptionKwh: 380, tariffPerKwh: 0.85, connectionType: 'monofasica' },
     areaM2: 30,
     items: [item('mod-trina-440', 8), item('inv-growatt-3k', 1), item('est-ceramica', 8)],
     status: 'recusada',
@@ -152,7 +160,7 @@ export const seedProposals: Proposal[] = [
     sequence: 42,
     name: 'Clínica Dr. Silva',
     whatsapp: '(62) 3095-4400',
-    installation: { address: 'Av. Anhanguera, 5400', city: 'Goiânia', state: 'GO', monthlyConsumptionKwh: 1300, tariffPerKwh: 0.83, connectionType: 'trifasica', roofType: 'metalico' },
+    installation: { address: 'Av. Anhanguera', number: '5400', city: 'Goiânia', state: 'GO', monthlyConsumptionKwh: 1300, tariffPerKwh: 0.83, connectionType: 'trifasica', roofType: 'metalico' },
     areaM2: 110,
     items: [item('mod-cs-650', 16), item('inv-huawei-8k', 1), item('est-metalico', 16)],
     status: 'aprovada',
@@ -163,7 +171,7 @@ export const seedProposals: Proposal[] = [
     sequence: 41,
     name: 'Claudio Ramos',
     whatsapp: '(62) 99180-3377',
-    installation: { address: 'Rua 1, 12', city: 'Trindade', state: 'GO', monthlyConsumptionKwh: 520, tariffPerKwh: 0.86, connectionType: 'monofasica' },
+    installation: { address: 'Rua 1', number: '12', city: 'Trindade', state: 'GO', monthlyConsumptionKwh: 520, tariffPerKwh: 0.86, connectionType: 'monofasica' },
     areaM2: 40,
     items: [item('mod-cs-550', 9), item('inv-growatt-5k', 1), item('est-ceramica', 9)],
     status: 'gerada',

@@ -9,13 +9,15 @@ interface QuantityStepperProps {
   onChange: (value: number) => void;
   min?: number;
   max?: number;
+  /** Incremento de cada toque (padrão 1). */
+  step?: number;
   /** "round": botões circulares (busca); "boxed": caixa com bordas (detalhes). */
   variant?: 'round' | 'boxed';
 }
 
-export function QuantityStepper({ value, onChange, min = 0, max = 999, variant = 'round' }: QuantityStepperProps) {
-  const decrement = () => onChange(Math.max(min, value - 1));
-  const increment = () => onChange(Math.min(max, value + 1));
+export function QuantityStepper({ value, onChange, min = 0, max = 999, step = 1, variant = 'round' }: QuantityStepperProps) {
+  const decrement = () => onChange(Math.max(min, value - step));
+  const increment = () => onChange(Math.min(max, value + step));
   const boxed = variant === 'boxed';
 
   return (

@@ -4,6 +4,7 @@ import type {
   Client,
   Equipment,
   Installation,
+  PaymentCondition,
   Proposal,
   ProposalItem,
   ProposalStatus,
@@ -25,8 +26,16 @@ interface DraftState {
   shadingPct: number | null;
   items: ProposalItem[];
   validityDays: number;
+  /** SCRUM-399. */
+  paymentCondition: PaymentCondition;
   /** Status da proposta de origem ao editar; null para uma instalação nova. */
   sourceStatus: ProposalStatus | null;
+  /**
+   * Proposta de origem ao editar (RN11: "Em elaboração" ou "Reaberta"). Gerar
+   * de novo mantém o número e a data da primeira geração e cria uma nova
+   * versão (Dicionário 7.1 `numero_versao`).
+   */
+  source: Proposal | null;
 }
 
 interface DraftContextValue extends DraftState {
@@ -41,6 +50,7 @@ interface DraftContextValue extends DraftState {
   updateItem: (equipmentId: string, patch: Partial<ProposalItem>) => void;
   removeItem: (equipmentId: string) => void;
   setValidityDays: (days: number) => void;
+  setPaymentCondition: (condition: PaymentCondition) => void;
   toProposal: (technicianId: string, sequence: number, status: ProposalStatus) => Proposal | null;
 }
 
@@ -52,7 +62,9 @@ const emptyDraft = (): DraftState => ({
   shadingPct: null,
   items: [],
   validityDays: commercialParameters.defaultValidityDays,
+  paymentCondition: { type: 'a_vista', installments: 1, downPaymentPct: 0 },
   sourceStatus: null,
+  source: null,
 });
 
 const DraftContext = createContext<DraftContextValue | null>(null);
@@ -99,12 +111,13 @@ export function DraftStoreProvider({ children }: { children: ReactNode }) {
 
   const toProposal = useCallback(
     (technicianId: string, sequence: number, status: ProposalStatus): Proposal | null => {
-      const { client, installation, measurement } = draft;
+      const { client, installation, measurement, source } = draft;
       if (!client || !installation || !measurement || !calculation) return null;
       const now = new Date().toISOString();
+      const firstGeneration = source?.generatedAt ?? (status === 'gerada' ? now : undefined);
       return {
         id: draft.id,
-        number: proposalNumber(new Date().getFullYear(), sequence),
+        number: source?.number ?? proposalNumber(new Date().getFullYear(), sequence),
         technicianId,
         client,
         installation,
@@ -113,12 +126,15 @@ export function DraftStoreProvider({ children }: { children: ReactNode }) {
         items: draft.items,
         ...calculation,
         validityDays: draft.validityDays,
+        paymentCondition: draft.paymentCondition,
         status,
         syncStatus: 'pendente',
-        version: 1,
-        createdAt: now,
-        generatedAt: status === 'gerada' ? now : undefined,
+        // Nova versão a cada novo PDF: ao gerar de novo uma proposta reaberta.
+        version: source ? source.version + (status === 'gerada' && source.status !== 'em_elaboracao' ? 1 : 0) : 1,
+        createdAt: source?.createdAt ?? now,
+        generatedAt: firstGeneration,
         updatedAt: now,
+        syncBase: source?.syncBase,
       };
     },
     [draft, calculation],
@@ -138,7 +154,9 @@ export function DraftStoreProvider({ children }: { children: ReactNode }) {
           shadingPct: proposal.shadingPct,
           items: proposal.items,
           validityDays: proposal.validityDays,
+          paymentCondition: proposal.paymentCondition,
           sourceStatus: mode === 'edit' ? proposal.status : null,
+          source: mode === 'edit' ? proposal : null,
         }),
       setClientData: (client, installation) => setDraft((d) => ({ ...d, client, installation })),
       setMeasurement: (measurement) => setDraft((d) => ({ ...d, measurement, shadingPct: null })),
@@ -152,6 +170,7 @@ export function DraftStoreProvider({ children }: { children: ReactNode }) {
       removeItem: (equipmentId) =>
         setDraft((d) => ({ ...d, items: d.items.filter((i) => i.equipmentId !== equipmentId) })),
       setValidityDays: (validityDays) => setDraft((d) => ({ ...d, validityDays })),
+      setPaymentCondition: (paymentCondition) => setDraft((d) => ({ ...d, paymentCondition })),
       toProposal,
     }),
     [draft, calculation, addEquipment, toProposal],

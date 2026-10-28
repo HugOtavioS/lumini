@@ -41,7 +41,7 @@ export function calculateProposal(input: CalculationInput): ProposalCalculation 
   const { selectedKwp } = checkCompatibility(input.items, sizing.requiredKwp, input.installation.connectionType);
   const systemKwp = selectedKwp > 0 ? selectedKwp : sizing.installedKwp;
   const monthlyGenerationKwh = monthlyGeneration(systemKwp, sizing.hsp, sizing.losses.totalPct);
-  const pricing = priceProposal(input.items, systemKwp);
+  const pricing = priceProposal(input.items, systemKwp, 0, input.installation);
   const viability = analyzeViability({
     totalCost: pricing.total,
     monthlyGenerationKwh,

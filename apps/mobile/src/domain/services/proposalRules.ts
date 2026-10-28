@@ -1,14 +1,28 @@
+import { STATUS_QUE_SINCRONIZAM, motivoBloqueio, podeEditar } from '@lumini/sync';
+
+import { statusParaContrato } from '@/data/sync/status';
 import type { ProposalStatus } from '../entities';
 import { FREE_PLAN_MONTHLY_LIMIT } from '../parameters';
 
+// RN07 e RN11 vêm do @lumini/sync (SCRUM-406): a mesma regra vale no app, na
+// web e na API, então o app não mantém uma cópia própria.
+
 /** RN11: o técnico edita apenas em "Em elaboração" e "Reaberta". */
 export function canTechnicianEdit(status: ProposalStatus): boolean {
-  return status === 'em_elaboracao' || status === 'reaberta';
+  return podeEditar('Tecnico', statusParaContrato[status]);
 }
 
-/** RN07: só sincroniza a partir de "Gerada". */
+/** RN11: texto que explica por que o técnico não pode editar (null se pode). */
+export function technicianEditBlockReason(status: ProposalStatus): string | null {
+  return motivoBloqueio('Tecnico', statusParaContrato[status]);
+}
+
+/**
+ * RN07: só sincroniza a partir de "Gerada". "Reaberta" também fica no aparelho:
+ * o técnico está editando e a proposta só volta a subir quando for gerada de novo.
+ */
 export function isSyncable(status: ProposalStatus): boolean {
-  return status !== 'em_elaboracao';
+  return STATUS_QUE_SINCRONIZAM.includes(statusParaContrato[status]);
 }
 
 /** RN05 / RN11: gerar de novo uma proposta "Reaberta" não consome o limite do plano. */

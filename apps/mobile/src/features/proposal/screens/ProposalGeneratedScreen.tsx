@@ -1,12 +1,12 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Check, CircleCheck, FileText, MessageCircle } from 'lucide-react-native';
+import { Check, CircleCheck, FileText, Mail, MessageCircle } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText, Button, Card, Header, IconBox, Screen, SyncNotice } from '@/components';
 import { useAppStore } from '@/store/AppStore';
 import { colors, navy, orange, radius, semantic } from '@/theme';
 import { notify } from '@/utils/notify';
-import { proposalFileName, shareViaWhatsApp } from '../share';
+import { proposalFileName, shareChannels, shareViaEmail, shareViaWhatsApp } from '../share';
 
 // Proposta Gerada com Sucesso (RF12, passos 5–6).
 export default function ProposalGeneratedScreen() {
@@ -37,12 +37,18 @@ export default function ProposalGeneratedScreen() {
       header={<Header onBack={goHome} />}
       footer={
         <>
-          <Button
-            label="Compartilhar via WhatsApp"
-            variant="outlineSuccess"
-            icon={MessageCircle}
-            onPress={() => shareViaWhatsApp(proposal)}
-          />
+          {/* SCRUM-398: compartilha pelo contato cadastrado. */}
+          {shareChannels(proposal).whatsapp && (
+            <Button
+              label="Compartilhar via WhatsApp"
+              variant="outlineSuccess"
+              icon={MessageCircle}
+              onPress={() => shareViaWhatsApp(proposal)}
+            />
+          )}
+          {shareChannels(proposal).email && (
+            <Button label="Enviar por e-mail" variant="outline" icon={Mail} onPress={() => shareViaEmail(proposal)} />
+          )}
           <Button label="Voltar ao Início" variant="ghost" onPress={goHome} />
         </>
       }
