@@ -1,12 +1,28 @@
 **LUMINI** — **DICIONÁRIO DE DADOS**
 
-Versão 1.2 — Setembro de 2026
+Versão 1.4 — Outubro de 2026
 
 # 1. Introdução e Convenções
 
 Este dicionário descreve, campo a campo, os dados persistidos pelo Lumini no banco local do aplicativo (SQLite com SQLCipher) e no banco central (PostgreSQL no Amazon RDS). Ele segue o Documento de Arquitetura de Software (DAS) v1.2 e o Documento de Escopo do MVP v1.4.
 
-## 1.1 Alterações desta Versão (v1.2)
+## 1.1 Alterações desta Versão (v1.4)
+
+Tabelas e campos usados pelo pacote de sincronização `packages/sync` (Épico 4).
+
+- **Log de Auditoria:** coluna `motivo` e novas entidades (Cliente, Instalacao, Medicao, SimulacaoSombreamento, SolicitacaoUpgrade), para registrar cada sobrescrita feita pela regra de conflito (SCRUM-83), inclusive os valores da alteração que foi descartada. Os valores do enum `entidade` passam a ser escritos como no código, sem acento (`Usuario`).
+- **Fila de Sincronização (nova, só no banco local):** uma linha por registro com alteração ainda não confirmada pelo servidor, com a versão-base usada para detectar conflito, o número de tentativas e a hora da próxima tentativa (SCRUM-82). Seção 8.3.
+
+## 1.2 Alterações da v1.3
+
+Campos exigidos pelo pacote de cálculo `packages/domain` (SCRUM-8, SCRUM-76, SCRUM-392 e SCRUM-395). Todos os campos novos são opcionais no banco (Nullable), para não quebrar registros existentes; a obrigatoriedade por categoria é validada pelo pacote de domínio e pelo formulário web (RF25).
+
+- **Equipamento:** `unidade_venda`; dados de módulo para string sizing e área (`vmp_v`, `imp_a`, coeficientes de temperatura, `comprimento_mm`, `largura_mm`, `eficiencia_perc`); dados de inversor (`tensao_partida_v`, `qtd_mppt`, `strings_por_mppt`, `corrente_curto_max_mppt_a`, `configuracao_mppt`, limites por entrada de microinversor, `potencia_max_cc_w`, `tensao_ca_v`); `especificacoes` (JSON por categoria). `corrente_max_entrada_a` passa a ser explicitamente **por MPPT**.
+- **Parâmetros Técnicos:** `temp_min_ambiente_c` e `temp_max_celula_c` (string sizing).
+- **Medição do Telhado e Simulação de Sombreamento:** sem colunas novas; a v1.3 detalha a regra do `calibrada` (protocolo do SCRUM-79) e o formato JSON de `obstaculos` e `sombreamento_mensal` (SCRUM-81).
+- **Localidade Climática:** `hsp_mensal` (HSP de cada mês, para a geração mês a mês); fonte recomendada para a carga da contingência: Atlas Brasileiro de Energia Solar 2017 (INPE/LABREN), um registro por município do IBGE.
+
+## 1.3 Alterações da v1.2
 
 - Novas tabelas: Empresa, Usuário, Assinatura, Solicitação de Upgrade, Instalação, Concessionária, Parâmetros Técnicos, Simulação de Sombreamento, Item da Proposta, Log de Auditoria e Log de Sincronização.
 - Dados de endereço e dados elétricos saíram de Cliente e foram para Instalação; `tipo_telhado` foi para Instalação; `tarifa_kwh` passou a ser Decimal.
@@ -15,7 +31,7 @@ Este dicionário descreve, campo a campo, os dados persistidos pelo Lumini no ba
 - Proposta ganhou técnico responsável, empresa, geração estimada, economia em 25 anos, materiais elétricos, margem e versão; `impacto_ambiental` virou `co2_evitado_kg_ano` (numérico).
 - `status_proposta` e `sync_status` foram separados.
 
-## 1.2 Convenções
+## 1.4 Convenções
 
 | Convenção | Regra |
 |---|---|
@@ -168,10 +184,11 @@ Onde: N, com cópia em L (pull).
 | latitude / longitude | Decimal(9,6) | Not Null | Referência regional (RF08, alternativa 2b) |
 | hsp_medio | Float | Not Null, > 0 | API de clima ou base pré-carregada |
 | irradiacao_kwh_m2_dia | Float | Not Null, > 0 | API de clima ou base pré-carregada |
+| hsp_mensal | JSON | Nullable | **v1.3.** Lista com o HSP de jan a dez (kWh/m²/dia) — geração mês a mês (SCRUM-8/SCRUM-12) |
 | fonte | Enum (API, Contingência) | Not Null | Sistema |
 | data_atualizacao | Timestamp | Not Null | Sistema (RF08, subfluxo 3.1) |
 
-Onde: L/N.
+Onde: L/N. A base de contingência (SCRUM-17) pode ser gerada a partir do Atlas Brasileiro de Energia Solar 2ª ed. (INPE/LABREN, 2017) com `npm run importar-atlas -w @lumini/domain` — um registro por município do IBGE, com o HSP anual e mensal da célula de 0,1° mais próxima. A consulta com fallback está em `packages/domain/src/hsp/obterHsp.ts` (SCRUM-8).
 
 ## 4.2 Parâmetros Técnicos
 
@@ -184,7 +201,9 @@ Onde: L/N.
 | perda_cabeamento_perc | Float | Not Null, 0 a 100 | Padrão configurável |
 | sombreamento_padrao_perc | Float | Not Null, 0 a 100 | Usado quando não há simulação (RF05, subfluxo 3.1) |
 | fator_emissao_kgco2_kwh | Float | Not Null, > 0 | Fator de referência (RN10) |
-| limite_superdimensionamento_perc | Float | Not Null, default 20 | Alerta da Lei 14.300 |
+| limite_superdimensionamento_perc | Float | Not Null, default 20 | Alerta de superdimensionamento (SCRUM-394). A Lei 14.300 não fixa percentual; o valor é da empresa |
+| temp_min_ambiente_c | Float | Nullable, default 0 | **v1.3.** Menor temperatura esperada no local (°C) — Voc máxima no string sizing (SCRUM-395) |
+| temp_max_celula_c | Float | Nullable, default 70 | **v1.3.** Maior temperatura de célula esperada (°C) — Vmp mínima no string sizing (SCRUM-395) |
 | updated_at / updated_by | Timestamp / UUID | Not Null | Sistema |
 
 Onde: N, com cópia em L (pull).
@@ -203,7 +222,7 @@ Onde: N, com cópia em L (pull).
 | inclinacao_graus | Float | Not Null, 0 a 90 | Medição RA ou manual |
 | orientacao | Enum (N, NE, L, SE, S, SO, O, NO) | Not Null | Bússola (RA) ou seleção manual |
 | azimute_graus | Float | Nullable, 0 a 360 | Precisão adicional para o sun path |
-| calibrada | Boolean | Not Null, default false | Calibração contra medida conhecida (SCRUM-79) |
+| calibrada | Boolean | Not Null, default false | `true` quando o aparelho foi aprovado no teste de calibração contra medida conhecida (SCRUM-79, `docs/testes/SCRUM-79_Protocolo_Calibracao_RA.md`); sempre `false` no método Manual |
 | data_coleta | Timestamp | Not Null | Sistema |
 | created_at / updated_at / updated_by | Timestamp / UUID | Not Null | Sistema |
 | sync_status | Enum | Not Null, default Pendente | Somente local |
@@ -219,8 +238,8 @@ Onde: L/N.
 | origem | Enum (Sun path + RA, Sun path manual, Estimativa manual) | Not Null | RF06 |
 | data_referencia | Date | Not Null | Data usada no cálculo da trajetória solar |
 | sombreamento_perc | Float | Not Null, 0 a 100 | Resultado usado como perda (RF07) |
-| sombreamento_mensal | JSON | Nullable | Percentual por mês, exibido no app e na web |
-| obstaculos | JSON | Nullable | Obstáculos identificados na cena de RA |
+| sombreamento_mensal | JSON | Nullable | Lista com o percentual de jan a dez, exibido no app e na web (`mensal[].sombreamentoPerc` do pacote de domínio) |
+| obstaculos | JSON | Nullable | Obstáculos identificados na cena de RA ou informados à mão, como perfil visto do centro do telhado: `[{nome, azimuteInicialGraus, azimuteFinalGraus, elevacaoGraus}]` (SCRUM-81) |
 | created_at / updated_at / updated_by | Timestamp / UUID | Not Null | Sistema |
 | sync_status | Enum | Not Null, default Pendente | Somente local |
 
@@ -236,14 +255,29 @@ Onde: L/N. O gestor consulta este resultado no detalhe da proposta na web.
 | fabricante | String(80) | Not Null | Formulário web |
 | modelo | String(80) | Not Null | Formulário web |
 | fornecedor | String(80) | Not Null | Formulário web; separado do fabricante |
-| potencia_w | Float | Nullable, > 0 | Obrigatório para módulos e inversores |
-| voc_v | Float | Nullable, > 0 | Tensão de circuito aberto (módulos) — NOVO-75 |
-| isc_a | Float | Nullable, > 0 | Corrente de curto-circuito (módulos) — NOVO-75 |
-| tensao_max_entrada_v | Float | Nullable, > 0 | Inversores — NOVO-75 |
-| corrente_max_entrada_a | Float | Nullable, > 0 | Inversores — NOVO-75 |
-| faixa_mppt_min_v / faixa_mppt_max_v | Float | Nullable, > 0 | Inversores — NOVO-75 |
+| unidade_venda | Enum (un, m, par, kit) | Not Null, default un | **v1.3.** Unidade contada na proposta (cabo por metro, conector por par, estrutura por kit) |
+| potencia_w | Float | Nullable, > 0 | Obrigatório para módulos (Pmax STC) e inversores (potência CA) |
+| voc_v | Float | Nullable, > 0 | Tensão de circuito aberto em STC (módulos) — SCRUM-395 |
+| isc_a | Float | Nullable, > 0 | Corrente de curto-circuito em STC (módulos) — SCRUM-395 |
+| vmp_v / imp_a | Float | Nullable, > 0 | **v1.3.** Tensão e corrente de máxima potência em STC (módulos) — SCRUM-395 |
+| coef_temp_voc_perc_c | Float | Nullable, < 0 | **v1.3.** Coeficiente de temperatura da Voc (%/°C) — Voc no frio (SCRUM-395) |
+| coef_temp_pmax_perc_c | Float | Nullable, < 0 | **v1.3.** Coeficiente da Pmax (%/°C) — usado para a Vmp no calor |
+| coef_temp_isc_perc_c | Float | Nullable, ≥ 0 | **v1.3.** Coeficiente da Isc (%/°C) |
+| comprimento_mm / largura_mm | Integer | Nullable, > 0 | **v1.3.** Dimensões do módulo — área exigida pelo kit (SCRUM-392) |
+| eficiencia_perc | Float | Nullable, 0 a 100 | **v1.3.** Eficiência do módulo (datasheet) |
+| tensao_max_entrada_v | Float | Nullable, > 0 | Inversores — SCRUM-395 |
+| corrente_max_entrada_a | Float | Nullable, > 0 | Inversores, **por MPPT** — SCRUM-395 |
+| corrente_curto_max_mppt_a | Float | Nullable, > 0 | **v1.3.** Corrente máxima de curto-circuito por MPPT (inversores) |
+| faixa_mppt_min_v / faixa_mppt_max_v | Float | Nullable, > 0 | Inversores — SCRUM-395 |
+| tensao_partida_v | Float | Nullable, > 0 | **v1.3.** Tensão de partida (inversores) |
+| qtd_mppt / strings_por_mppt | Integer | Nullable, > 0 | **v1.3.** Quantidade de MPPTs e de strings em cada um (quando todos são iguais) |
+| configuracao_mppt | JSON | Nullable | **v1.3.** Lista `[{strings, correnteMaxA, correnteCurtoMaxA}]` para inversores com MPPTs diferentes (ex.: 13,5 A / 13,5 A / 27 A); tem prioridade sobre os campos por MPPT |
+| corrente_max_por_string_a / corrente_curto_max_por_string_a | Float | Nullable, > 0 | **v1.3.** Limites por entrada (microinversores) |
+| potencia_max_cc_w | Float | Nullable, > 0 | **v1.3.** Potência CC máxima recomendada pelo fabricante (relação CC/CA) |
 | fases | Enum (Monofásico, Bifásico, Trifásico) | Nullable | Inversores; comparado com `tipo_ligacao` |
+| tensao_ca_v | Integer | Nullable, > 0 | **v1.3.** Tensão nominal CA do inversor (ex.: 220, 380) |
 | garantia_anos | Integer | Nullable, ≥ 0 | Exibido no modal de detalhes |
+| especificacoes | JSON | Nullable | **v1.3.** Atributos próprios de cada categoria (ex.: seção e tensão do cabo, entradas da string box, telhado e capacidade da estrutura) |
 | preco_custo | Decimal | Not Null, > 0 | Formulário web |
 | margem_percentual | Float | Not Null, ≥ 0 | Formulário web |
 | preco_venda | Decimal | Not Null, > 0 | Calculado: `preco_custo × (1 + margem_percentual/100)` |
@@ -251,6 +285,8 @@ Onde: L/N. O gestor consulta este resultado no detalhe da proposta na web.
 | created_at / updated_at / updated_by | Timestamp / UUID | Not Null | Alterações de preço também vão ao Log de Auditoria |
 
 Onde: N, com cópia somente leitura em L (pull). O técnico **não** altera registros do catálogo.
+
+Obrigatoriedade por categoria (validada em `packages/domain`, função `validarEquipamento`): **Módulo** exige `potencia_w`, `voc_v`, `isc_a`, `vmp_v`, `imp_a`, `coef_temp_voc_perc_c`, `comprimento_mm` e `largura_mm`; **Inversor** exige `potencia_w`, `tensao_max_entrada_v`, a faixa do MPPT, `fases` e a configuração dos MPPTs (`configuracao_mppt` ou `qtd_mppt` + `strings_por_mppt` + `corrente_max_entrada_a`). A carga inicial com itens reais das 6 categorias está em `packages/domain/src/catalogo/dados/catalogo-inicial.json` (SCRUM-76).
 
 # 7. Proposta Comercial
 
@@ -316,16 +352,17 @@ Onde: L/N.
 |---|---|---|---|
 | id_log | UUID | PK | Sistema |
 | id_empresa | UUID | FK Empresa, Not Null | — |
-| entidade | Enum (Equipamento, ItemProposta, Proposta, Assinatura, Usuário) | Not Null | Registro alterado |
+| entidade | Enum (Equipamento, ItemProposta, Proposta, Assinatura, Usuario, Cliente, Instalacao, Medicao, SimulacaoSombreamento, SolicitacaoUpgrade) | Not Null | Registro alterado. **v1.4:** entidades da sincronização (conflitos, SCRUM-83) |
 | id_registro | UUID | Not Null | Registro alterado |
-| campo | String(60) | Not Null | Ex.: preco_custo, ajuste_percentual, status_proposta |
+| campo | String(60) | Not Null | Ex.: preco_custo, ajuste_percentual, status_proposta; nos itens, também `(item incluído)` e `(item removido)` |
 | valor_anterior | String | Nullable | Valor antes da alteração |
 | valor_novo | String | Nullable | Valor depois da alteração |
 | id_usuario | UUID | FK Usuário, Not Null | Quem alterou |
 | origem | Enum (Mobile, Web, API) | Not Null | De onde veio a alteração |
 | data_hora | Timestamp | Not Null | Sistema |
+| motivo | String(300) | Nullable | **v1.4.** Por que a linha existe quando não é uma edição comum. Ex.: "Conflito de sincronização (last-write-wins): a versão de 18/10/2026 às 09:10 substituiu a de 18/10/2026 às 09:05." |
 
-Onde: L/N (gerado no dispositivo para ajustes de preço e enviado na sincronização). Substitui a entidade de preço versionado das versões anteriores.
+Onde: L/N (gerado no dispositivo para ajustes de preço e enviado na sincronização; gerado na API ao resolver conflitos). Substitui a entidade de preço versionado das versões anteriores. Em conflitos, há uma linha por campo sobrescrito; quando a alteração que chegou é a descartada, `valor_anterior` guarda o que se perdeu e `valor_novo`, o que prevaleceu.
 
 ## 8.2 Log de Sincronização
 
@@ -341,3 +378,26 @@ Onde: L/N (gerado no dispositivo para ajustes de preço e enviado na sincroniza�
 | mensagem_erro | String | Nullable | Preenchido em falhas |
 
 Onde: L/N.
+
+## 8.3 Fila de Sincronização
+
+Uma linha por registro com alteração que ainda não foi confirmada pelo servidor (SCRUM-82). Editar de novo um registro pendente atualiza a mesma linha. A linha some quando o servidor confirma; enquanto existir, o `sync_status` do registro é o `situacao` daqui.
+
+| Campo | Tipo | Restrições | Origem / Observação |
+|---|---|---|---|
+| id_operacao | String | PK | `<entidade>:<id do registro>` |
+| entidade | Enum (Cliente, Instalacao, Medicao, SimulacaoSombreamento, Proposta, SolicitacaoUpgrade) | Not Null | Registro a enviar |
+| id_registro | UUID | Not Null, Unique com `entidade` | Registro a enviar |
+| prioridade | Integer | Not Null | Ordem de dependência (DAS 4.1): cliente 1 → solicitação de upgrade 6 |
+| payload | JSON | Not Null | Última versão do registro (a Proposta leva os itens junto) |
+| base_updated_at | Timestamp | Nullable | `updated_at` do servidor que o aparelho conhecia antes da primeira edição offline; nulo para registro criado no aparelho. Usado na detecção de conflito (SCRUM-83) |
+| situacao | Enum (Pendente, Erro) | Not Null, default Pendente | Vira o `sync_status` do registro (RF16) |
+| retentar_automaticamente | Boolean | Not Null, default true | `false` quando a API recusou o registro: espera ação do técnico |
+| tentativas | Integer | Not Null, ≥ 0 | Falhas seguidas (backoff exponencial) |
+| proxima_tentativa_em | Timestamp (ms) | Not Null | Quando a fila tenta de novo |
+| ultima_tentativa_em | Timestamp (ms) | Nullable | Mostrado ao tocar no indicador (RF16) |
+| ultimo_erro | String | Nullable | Mensagem da última falha |
+| revisao | Integer | Not Null, default 1 | Cresce a cada edição; evita perder uma edição feita durante o envio |
+| criado_em / atualizado_em | Timestamp (ms) | Not Null | Sistema |
+
+Onde: L (somente local).

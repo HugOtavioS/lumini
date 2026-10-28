@@ -57,8 +57,9 @@ Arquitetura client-server com estratégia **offline-first** no cliente mobile: t
 | Banco central | PostgreSQL no Amazon RDS, multi-tenant por `id_empresa` |
 | Autenticação | JWT com refresh token, papéis Técnico e Gestor Comercial |
 | Cálculo compartilhado | Pacote `packages/domain` (TypeScript), usado pelo app e pela web — a API não calcula |
+| Sincronização offline | Pacote `packages/sync` (TypeScript): fila persistente no SQLite, regra de conflito e limite de armazenamento local |
 
-Detalhamento completo no [Documento de Arquitetura de Software](docs/arquitetura/Lumini_Arquitetura_v1.2.md) e na [documentação das stacks mobile](docs/arquitetura/Stacks_Mobile_v1.1.md).
+Detalhamento completo no [Documento de Arquitetura de Software](docs/arquitetura/Lumini_Arquitetura_v1.2.md), na [documentação das stacks mobile](docs/arquitetura/Stacks_Mobile_v1.1.md) e no [documento da sincronização offline](docs/arquitetura/Sincronizacao_Offline_v1.0.md).
 
 ## Estrutura do Repositório
 
@@ -70,6 +71,7 @@ lumini/
 │   └── api/        # Backend NestJS (sincronização e persistência)
 ├── packages/
 │   ├── domain/     # Regras de cálculo compartilhadas (app + web)
+│   ├── sync/       # Fila de sincronização offline, conflitos e armazenamento local
 │   ├── pdf/         # Template da proposta comercial
 │   └── contracts/  # Tipos e schemas dos payloads de sincronização
 ├── docs/           # ERS, arquitetura, dicionário de dados e backlog
@@ -81,6 +83,20 @@ lumini/
 ## Como Executar
 
 Em definição junto com a escolha do framework web (NOVO-101) e da hospedagem AWS (NOVO-102). Este README será atualizado com instruções de instalação e execução (mobile, web e API) conforme cada parte for implementada.
+
+Já dá para rodar os pacotes compartilhados (`packages/domain` e `packages/sync`), com Node.js 22.13 ou mais recente (recomendado: 24 LTS):
+
+```bash
+npm ci                  # instala as dependências de todos os pacotes (npm workspaces)
+npm test                # verificação de tipos + testes automatizados
+npm run test:detalhado  # lista cada teste, agrupado por item do backlog
+npm run demo            # tasks de cálculo (packages/domain): cada uma com um exemplo na tela
+npm run demo:sync       # tasks de sincronização (packages/sync): cada cenário na tela
+```
+
+No PowerShell do Windows, use `npm.cmd` no lugar de `npm` se a política de scripts bloquear o `npm`. Sem internet, use `npm run demo:sem-internet` no lugar de `npm run demo` (a demonstração da sincronização não usa a internet).
+
+Detalhes e exemplos de uso em [`packages/domain/README.md`](packages/domain/README.md) e [`packages/sync/README.md`](packages/sync/README.md).
 
 ## Documentação
 
