@@ -1,0 +1,45 @@
+# CI do Lumini (SCRUM-69 / SCRUM-108): typecheck + testes a cada pull request.
+# Sem deploy automático, por decisão da equipe (docs/arquitetura/Lumini_Arquitetura_v1.2.md, Seção 8).
+#
+# Antes este arquivo estava em `ci/ci.yml`, onde o GitHub não o encontra: só
+# rodam workflows dentro de `.github/workflows/`.
+#
+# `npm test` na raiz roda, em cada workspace (packages/* e apps/*):
+#   1. `typecheck` (tsc --noEmit) — inclui o app mobile;
+#   2. `test` (vitest) — @lumini/domain e @lumini/sync.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck-e-testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22 # o package.json exige Node >= 22.13 (node:sqlite nos testes do @lumini/sync)
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # Lint: entra quando a configuração do SCRUM-68 (ESLint/Prettier) for
+      # commitada. O `expo lint` do app tenta instalar a configuração de forma
+      # interativa quando ela não existe, o que travaria o CI.
+
+      - name: Typecheck e testes
+        run: npm test
