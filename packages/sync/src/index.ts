@@ -19,6 +19,9 @@ export * from './fila/fila';
 export * from './conflito/diferencas';
 export * from './conflito/resolverConflito';
 
+// SCRUM-406 — RN11: quem pode editar a proposta em cada status (app, web e API)
+export * from './regras/rn11';
+
 // SCRUM-87 — limite de armazenamento local e limpeza manual
 export * from './armazenamento/politica';
 

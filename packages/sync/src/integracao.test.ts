@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EntidadeSincronizavel } from './contrato';
 import { ServidorSincronizacaoMemoria } from './servidor/servidorReferencia';
 import { AparelhoSimulado, Rede } from './testes/ambiente';
-import { EMPRESA, TECNICO_ANA, TECNICO_BRUNO } from './testes/registros';
+import { EMPRESA, GESTORA_CARLA, TECNICO_ANA, TECNICO_BRUNO } from './testes/registros';
 import { criarPastaTemporaria, type PastaTemporaria } from './testes/sqlite';
 
 const ITENS = [
@@ -49,6 +49,29 @@ async function aparelho(nome: string, idUsuario: string): Promise<AparelhoSimula
   await a.abrir();
   abertos.push(a);
   return a;
+}
+
+/**
+ * A gestora reabre a proposta pela web (RN11: o técnico só volta a editar uma
+ * proposta gerada depois que o gestor a reabre).
+ */
+function reabrirPelaWeb(em: string): void {
+  const atual = servidor.obter('Proposta', 'pro-1')!;
+  const r = servidor.push(
+    { idUsuario: GESTORA_CARLA, idEmpresa: EMPRESA, papel: 'Gestor' },
+    {
+      idDispositivo: 'navegador-carla',
+      operacoes: [
+        {
+          idOperacao: 'Proposta:pro-1',
+          entidade: 'Proposta',
+          baseUpdatedAt: atual.updatedAt,
+          versao: { ...atual, updatedAt: em, updatedBy: GESTORA_CARLA, dados: { ...atual.dados, status_proposta: 'Reaberta' } },
+        },
+      ],
+    },
+  );
+  expect(r.resultados[0]).toMatchObject({ situacao: 'aplicada' });
 }
 
 /** O orçamento completo feito em campo: cliente, instalação, medição, simulação e proposta gerada. */
@@ -157,7 +180,9 @@ describe('SCRUM-86 — offline → reconexão → sincronização automática', 
     const ana = await aparelho('ana', TECNICO_ANA);
     await orcamentoCompleto(ana, '2026-10-18T14:00:00.000Z');
     await ana.fila.processar();
-    const dados = (await ana.registro('Proposta', 'pro-1'))!.versao.dados;
+    reabrirPelaWeb('2026-10-18T14:02:00.000Z');
+    await ana.puxar();
+    const dados = { ...(await ana.registro('Proposta', 'pro-1'))!.versao.dados, status_proposta: 'Gerada' };
 
     await ana.salvar('Proposta', 'pro-1', { ...dados, valor_total: 22000 }, '2026-10-18T14:05:00.000Z');
     rede.perderProximaResposta = true;
@@ -208,14 +233,21 @@ describe('SCRUM-86 — offline → reconexão → sincronização automática', 
 });
 
 describe('SCRUM-86 + SCRUM-83 — o mesmo registro editado offline em dois aparelhos', () => {
-  /** A proposta já sincronizada e baixada pelos dois técnicos (versão das 14:00). */
+  /**
+   * A proposta já sincronizada, reaberta pela gestora (RN11) e baixada pelos
+   * dois técnicos (versão das 14:02, "Reaberta"). Os dois editam offline e
+   * geram de novo.
+   */
   async function cenario() {
     const ana = await aparelho('ana', TECNICO_ANA);
     await orcamentoCompleto(ana, '2026-10-18T14:00:00.000Z');
     await ana.fila.processar();
+    reabrirPelaWeb('2026-10-18T14:02:00.000Z');
+    await ana.puxar();
     const bruno = await aparelho('bruno', TECNICO_BRUNO);
     await bruno.puxar();
     expect((await bruno.registro('Proposta', 'pro-1'))?.syncStatus).toBe('Sincronizado');
+    expect((await bruno.registro('Proposta', 'pro-1'))?.versao.dados.status_proposta).toBe('Reaberta');
     ana.desconectar();
     bruno.desconectar();
     return { ana, bruno };
@@ -300,18 +332,20 @@ describe('SCRUM-86 + SCRUM-83 — o mesmo registro editado offline em dois apare
     expect(await ana.fila.listar()).toEqual([]);
   });
 
-  it('se a resposta se perde e outro técnico altera o registro antes do reenvio, o aparelho recebe a versão atual, sem conflito falso', async () => {
-    const { ana, bruno } = await cenario();
+  it('se a resposta se perde e a gestora altera o registro antes do reenvio, o aparelho recebe a versão atual, sem conflito falso', async () => {
+    const { ana } = await cenario();
     await ana.salvar('Proposta', 'pro-1', comValor(22000), '2026-10-18T14:05:00.000Z');
     rede.perderProximaResposta = true;
     await ana.conectar(); // o servidor grava a edição da Ana, mas a resposta se perde
 
-    // O Bruno baixa a versão da Ana e edita em cima dela.
-    await bruno.conectar();
-    await bruno.puxar();
-    expect((await bruno.registro('Proposta', 'pro-1'))?.versao.dados.valor_total).toBe(22000);
-    await bruno.salvar('Proposta', 'pro-1', comValor(24500), '2026-10-18T14:10:00.000Z');
-    await bruno.fila.processar();
+    // A gestora baixa a versão gerada pela Ana e edita em cima dela, pela web (RN11: "Gerada" é do gestor).
+    const carla = new AparelhoSimulado('carla', { idUsuario: GESTORA_CARLA, idEmpresa: EMPRESA, papel: 'Gestor' }, pasta.arquivo('carla.db'), servidor, rede);
+    await carla.abrir();
+    abertos.push(carla);
+    await carla.puxar();
+    expect((await carla.registro('Proposta', 'pro-1'))?.versao.dados.valor_total).toBe(22000);
+    await carla.salvar('Proposta', 'pro-1', comValor(24500), '2026-10-18T14:10:00.000Z');
+    await carla.fila.processar();
 
     await ana.fila.retentarAgora(); // o reenvio da Ana chega depois
     const final = servidor.obter('Proposta', 'pro-1');

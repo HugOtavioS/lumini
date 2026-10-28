@@ -27,6 +27,20 @@ function push(s: ServidorSincronizacaoMemoria, sessao: SessaoServidor, ...operac
   return s.push(sessao, { idDispositivo: APARELHO[sessao.idUsuario] ?? 'aparelho-desconhecido', operacoes });
 }
 
+const TR = '2026-10-18T11:55:00.000Z';
+
+/**
+ * Servidor com a proposta p1 reaberta pela gestora (versão T0, "Reaberta"):
+ * o único status em que dois técnicos podem editar a mesma proposta (RN11).
+ * Eles editam offline e enviam a proposta gerada de novo.
+ */
+function comPropostaReaberta() {
+  const s = servidor();
+  push(s, ANA, operacao('Cliente', cliente('c1', TR)), operacao('Instalacao', instalacao('i1', 'c1', TR)), operacao('Proposta', proposta('p1', 'i1', TR)));
+  push(s, CARLA, operacao('Proposta', proposta('p1', 'i1', T0, { status_proposta: 'Reaberta' }, GESTORA_CARLA), TR));
+  return s;
+}
+
 /** Servidor com cliente c1, instalação i1 e proposta p1 (versão T0). */
 function comProposta() {
   const s = servidor();
@@ -79,9 +93,62 @@ describe('servidor de referência — push', () => {
   });
 });
 
+describe('servidor de referência — RN11 (SCRUM-406): quem edita em cada status', () => {
+  it('o técnico não altera uma proposta "Gerada"; a gravação é recusada antes do last-write-wins, sem auditoria', () => {
+    const s = comProposta();
+    const r = push(s, ANA, operacao('Proposta', proposta('p1', 'i1', T1, { valor_total: 99000 }), T0));
+    expect(r.resultados[0]).toMatchObject({ situacao: 'rejeitada', codigo: 'RN11', retentavel: false });
+    expect(s.obter('Proposta', 'p1')?.dados.valor_total).toBe(21500);
+    expect(s.logAuditoria).toEqual([]);
+  });
+
+  it('a gestora edita "Gerada" e "Em negociação"; depois de aprovada, ninguém altera', () => {
+    const s = comProposta();
+    expect(push(s, CARLA, operacao('Proposta', proposta('p1', 'i1', T1, { status_proposta: 'Em negociação', desconto_comercial: 500 }, GESTORA_CARLA), T0)).resultados[0])
+      .toMatchObject({ situacao: 'aplicada' });
+    expect(push(s, CARLA, operacao('Proposta', proposta('p1', 'i1', T2, { status_proposta: 'Aprovada' }, GESTORA_CARLA), T1)).resultados[0])
+      .toMatchObject({ situacao: 'aplicada' });
+    const depois = push(s, CARLA, operacao('Proposta', proposta('p1', 'i1', '2026-10-18T12:20:00.000Z', { status_proposta: 'Em negociação' }, GESTORA_CARLA), T2));
+    expect(depois.resultados[0]).toMatchObject({ situacao: 'rejeitada', codigo: 'RN11' });
+    expect(s.obter('Proposta', 'p1')?.dados.status_proposta).toBe('Aprovada');
+  });
+
+  it('com a proposta "Reaberta", a gestora não edita; o técnico edita e gera de novo', () => {
+    const s = comPropostaReaberta();
+    const gestora = push(s, CARLA, operacao('Proposta', proposta('p1', 'i1', T1, { status_proposta: 'Aprovada' }, GESTORA_CARLA), T0));
+    expect(gestora.resultados[0]).toMatchObject({ situacao: 'rejeitada', codigo: 'RN11' });
+    const tecnica = push(s, ANA, operacao('Proposta', proposta('p1', 'i1', T1, { valor_total: 22000 }), T0));
+    expect(tecnica.resultados[0]).toMatchObject({ situacao: 'aplicada', conflito: false });
+  });
+
+  it('o técnico não muda o status para "Aprovada", e o gestor não cria proposta', () => {
+    const s = comPropostaReaberta();
+    const tecnica = push(s, ANA, operacao('Proposta', proposta('p1', 'i1', T1, { status_proposta: 'Aprovada' }), T0));
+    expect(tecnica.resultados[0]).toMatchObject({ situacao: 'rejeitada', codigo: 'RN11' });
+    const nova = push(s, CARLA, operacao('Proposta', proposta('p9', 'i1', T1, {}, GESTORA_CARLA)));
+    expect(nova.resultados[0]).toMatchObject({ situacao: 'rejeitada', codigo: 'RN11' });
+  });
+
+  it('edição atrasada do técnico não tira a proposta da negociação', () => {
+    const s = comPropostaReaberta();
+    push(s, ANA, operacao('Proposta', proposta('p1', 'i1', T1, { valor_total: 22000 }), T0));
+    push(s, CARLA, operacao('Proposta', proposta('p1', 'i1', T2, { status_proposta: 'Em negociação' }, GESTORA_CARLA), T1));
+    // O Bruno tinha baixado a versão "Reaberta" (T0) e só agora reconectou.
+    const atrasada = push(s, BRUNO, operacao('Proposta', proposta('p1', 'i1', '2026-10-18T12:15:00.000Z', { valor_total: 24500 }, TECNICO_BRUNO), T0));
+    expect(atrasada.resultados[0]).toMatchObject({ situacao: 'rejeitada', codigo: 'RN11' });
+    expect(s.obter('Proposta', 'p1')?.dados.status_proposta).toBe('Em negociação');
+  });
+
+  it('o reenvio da mesma versão (resposta perdida) não é tratado como edição', () => {
+    const s = comProposta();
+    const r = push(s, ANA, operacao('Proposta', proposta('p1', 'i1', T0)));
+    expect(r.resultados[0]).toMatchObject({ situacao: 'aplicada' });
+  });
+});
+
 describe('servidor de referência — conflito, auditoria e avisos', () => {
   it('versão mais recente sobrescreve: auditoria, e o aviso chega a quem perdeu no próximo pull (uma vez só)', () => {
-    const s = comProposta();
+    const s = comPropostaReaberta();
     push(s, ANA, operacao('Proposta', proposta('p1', 'i1', T1, { valor_total: 22000 }), T0));
     const r = push(s, BRUNO, operacao('Proposta', proposta('p1', 'i1', T2, { valor_total: 24500 }, TECNICO_BRUNO), T0));
     expect(r.resultados[0]).toMatchObject({ situacao: 'aplicada', conflito: true });
@@ -97,7 +164,7 @@ describe('servidor de referência — conflito, auditoria e avisos', () => {
   });
 
   it('versão mais antiga é descartada: a resposta traz a versão do servidor e o motivo', () => {
-    const s = comProposta();
+    const s = comPropostaReaberta();
     push(s, BRUNO, operacao('Proposta', proposta('p1', 'i1', T2, { valor_total: 24500 }, TECNICO_BRUNO), T0));
     const r = push(s, ANA, operacao('Proposta', proposta('p1', 'i1', T1, { valor_total: 22000 }), T0));
     expect(r.resultados[0]).toMatchObject({ situacao: 'descartada' });
@@ -111,7 +178,7 @@ describe('servidor de referência — conflito, auditoria e avisos', () => {
 
 describe('servidor de referência — reenvio quando a resposta se perde', () => {
   it('nova edição no mesmo aparelho depois de uma resposta perdida não é conflito; vinda de outro aparelho, é', () => {
-    const s = comProposta();
+    const s = comPropostaReaberta();
     // A Ana edita e envia; o servidor grava, mas a resposta se perde. Ela edita de novo antes do
     // reenvio, e a fila manda a versão nova com a mesma versão-base de antes (T0).
     push(s, ANA, operacao('Proposta', proposta('p1', 'i1', T1, { valor_total: 22000 }), T0));
@@ -127,7 +194,7 @@ describe('servidor de referência — reenvio quando a resposta se perde', () =>
   });
 
   it('reenvio de uma alteração descartada: mesma resposta, sem repetir o log de auditoria', () => {
-    const s = comProposta();
+    const s = comPropostaReaberta();
     push(s, BRUNO, operacao('Proposta', proposta('p1', 'i1', T2, { valor_total: 24500 }, TECNICO_BRUNO), T0));
     const daAna = operacao('Proposta', proposta('p1', 'i1', T1, { valor_total: 22000 }), T0);
     const primeira = push(s, ANA, daAna);
@@ -138,13 +205,13 @@ describe('servidor de referência — reenvio quando a resposta se perde', () =>
   });
 
   it('reenvio de uma versão já gravada e alterada depois em outro aparelho: recebe a versão atual, sem nada novo no log', () => {
-    const s = comProposta();
+    const s = comPropostaReaberta();
     const daAna = operacao('Proposta', proposta('p1', 'i1', T1, { valor_total: 22000 }), T0);
     push(s, ANA, daAna); // gravada, mas a resposta se perde
-    // O Bruno baixa a versão da Ana e edita em cima dela.
-    push(s, BRUNO, operacao('Proposta', proposta('p1', 'i1', T2, { valor_total: 24500 }, TECNICO_BRUNO), T1));
+    // A gestora baixa a versão gerada pela Ana e edita em cima dela, pela web (RN11: "Gerada" é do gestor).
+    push(s, CARLA, operacao('Proposta', proposta('p1', 'i1', T2, { valor_total: 24500 }, GESTORA_CARLA), T1));
     const reenvio = push(s, ANA, daAna);
-    expect(reenvio.resultados[0]).toMatchObject({ situacao: 'descartada', versaoServidor: { updatedBy: TECNICO_BRUNO } });
+    expect(reenvio.resultados[0]).toMatchObject({ situacao: 'descartada', versaoServidor: { updatedBy: GESTORA_CARLA } });
     expect(reenvio.resultados[0]).toMatchObject({ mensagem: expect.stringContaining('já tinha chegado ao servidor') });
     expect(s.obter('Proposta', 'p1')?.dados.valor_total).toBe(24500);
     expect(s.logAuditoria).toEqual([]);

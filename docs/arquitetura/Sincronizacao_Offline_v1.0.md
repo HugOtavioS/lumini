@@ -75,7 +75,13 @@ O aparelho nunca decide conflito sozinho. No pull, se um registro ainda tem alte
 
 Um celular atrasado ainda pode perder um conflito que deveria ganhar. Se isso aparecer nos testes de campo, dá para corrigir o horário pelo desvio medido em cada sincronização.
 
-Quando o NOVO-106 (RN11 na API) for implementado, a checagem de permissão por status vem antes desta regra: uma alteração que o usuário não podia fazer é recusada e não passa pelo last-write-wins.
+**RN11 antes do conflito (SCRUM-406 / NOVO-106).** Antes desta regra, o servidor confere se o papel podia editar a proposta (`verificarGravacaoRN11`, em `packages/sync/src/regras/rn11.ts`). Uma alteração que o usuário não podia fazer é recusada com o código `RN11` (não retentável) e não passa pelo last-write-wins nem gera log de auditoria:
+
+- "Aprovada" e "Recusada" no servidor: ninguém altera;
+- técnico com a proposta "Em negociação" no servidor: recusa (uma edição atrasada não tira a proposta da negociação);
+- nos outros casos, a permissão é avaliada no status da **versão-base** (o que o usuário via quando começou a editar). O servidor guarda o status de cada versão gravada da proposta para isso. Assim, dois técnicos que editam a mesma proposta "Reaberta" passam pela RN11 e o conflito entre eles é decidido aqui, pelo last-write-wins;
+- o técnico só leva a proposta para "Gerada"; o gestor não cria propostas e, a partir de "Gerada" ou "Em negociação", pode negociar, gerar nova versão, reabrir, aprovar ou recusar;
+- o reenvio da mesma versão (resposta perdida) não é edição e passa direto.
 
 # 4. Armazenamento local (SCRUM-87)
 
@@ -166,6 +172,6 @@ Ao salvar um registro, os repositórios do app gravam no SQLite e chamam `fila.e
 - SCRUM-18: ligar NetInfo e AppState à fila no app (a lógica de quando enviar já está pronta).
 - SCRUM-84: indicador visual, com `syncStatusDe` e `resumo()`.
 - NOVO-76: botão "Forçar sincronização agora", com `retentarAgora()`.
-- NOVO-106: RN11 na API, antes da regra de conflito.
+- ~~NOVO-106: RN11 na API, antes da regra de conflito.~~ Feito no SCRUM-406 (`src/regras/rn11.ts` e servidor de referência); a API NestJS chama `verificarGravacaoRN11` no mesmo ponto.
 - SCRUM-90: versionamento de proposta, se a equipe decidir criar uma versão nova em vez de sobrescrever.
 - SCRUM-105: os testes unitários da sincronização e do conflito já estão no pacote.

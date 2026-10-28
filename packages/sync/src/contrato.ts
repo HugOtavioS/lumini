@@ -91,7 +91,8 @@ export interface RequisicaoPush {
   operacoes: OperacaoSync[];
 }
 
-export type CodigoRejeicao = 'DADOS_INVALIDOS' | 'RN07' | 'DEPENDENCIA_AUSENTE' | 'OUTRA_EMPRESA' | 'SEM_PERMISSAO';
+/** `RN11`: o papel do usuário não pode editar a proposta no status em que ela está (SCRUM-406). */
+export type CodigoRejeicao = 'DADOS_INVALIDOS' | 'RN07' | 'RN11' | 'DEPENDENCIA_AUSENTE' | 'OUTRA_EMPRESA' | 'SEM_PERMISSAO';
 
 export type ResultadoOperacao =
   | {

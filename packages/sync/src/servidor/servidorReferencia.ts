@@ -14,7 +14,13 @@
  * 4. o registro pai já existe (senão, recusa retentável: ele pode chegar depois);
  * 5. reenvio (a resposta anterior se perdeu): a mesma versão, vinda do mesmo
  *    aparelho, não gera nada novo, nem no Log de Auditoria nem em avisos;
- * 6. resolução de conflito (SCRUM-83), com Log de Auditoria e aviso.
+ * 6. RN11 (SCRUM-406): o papel precisa poder editar a proposta no status em
+ *    que ela está no servidor, e a transição de status precisa ser permitida
+ *    (técnico: "Em elaboração"/"Reaberta" → "Gerada"; gestor: "Gerada"/
+ *    "Em negociação" → negociação, nova versão, reaberta, aprovada ou
+ *    recusada; "Aprovada" e "Recusada" são somente leitura). Gravação fora
+ *    da regra é recusada sem passar pelo last-write-wins;
+ * 7. resolução de conflito (SCRUM-83), com Log de Auditoria e aviso.
  *
  * Para as regras 5 e 6, o servidor guarda qual aparelho gravou cada registro e
  * qual foi o último envio de cada aparelho para cada registro.
@@ -38,9 +44,11 @@ import {
   type RespostaPull,
   type RespostaPush,
   type ResultadoOperacao,
+  type StatusProposta,
   type VersaoRegistro,
 } from '../contrato';
 import { mensagemReenvioSuperado, resolverConflito } from '../conflito/resolverConflito';
+import { ehStatusProposta, verificarGravacaoRN11 } from '../regras/rn11';
 import { gerarIdPadrao, isoDeMs, jsonEstavel, msDeIso } from '../util';
 
 export interface SessaoServidor {
@@ -82,6 +90,11 @@ function impressaoDe(versao: VersaoRegistro): string {
 
 function mesmoConteudo(a: VersaoRegistro, b: VersaoRegistro): boolean {
   return a.updatedBy === b.updatedBy && jsonEstavel(a.dados) === jsonEstavel(b.dados);
+}
+
+function statusDe(versao: VersaoRegistro): StatusProposta | null {
+  const status = versao.dados.status_proposta;
+  return ehStatusProposta(status) ? status : null;
 }
 
 function rejeitada(op: OperacaoSync, codigo: CodigoRejeicao, mensagem: string, retentavel = false): ResultadoOperacao {
@@ -174,6 +187,22 @@ export class ServidorSincronizacaoMemoria {
     return [...this.registros.values()].filter((g) => g.entidade === entidade).sort((a, b) => a.seq - b.seq).map((g) => g.versao);
   }
 
+  /** RN11: status de cada versão gravada de uma proposta, para avaliar a permissão na versão-base. */
+  private readonly statusPorVersao = new Map<string, Map<string, StatusProposta>>();
+
+  private guardarStatusDaVersao(chaveRegistro: string, versao: VersaoRegistro): void {
+    const status = statusDe(versao);
+    if (status === null) return;
+    const porVersao = this.statusPorVersao.get(chaveRegistro) ?? new Map<string, StatusProposta>();
+    porVersao.set(versao.updatedAt, status);
+    this.statusPorVersao.set(chaveRegistro, porVersao);
+  }
+
+  private statusNaVersao(chaveRegistro: string, updatedAt: string | null): StatusProposta | null {
+    if (updatedAt === null) return null;
+    return this.statusPorVersao.get(chaveRegistro)?.get(updatedAt) ?? null;
+  }
+
   private aplicar(sessao: SessaoServidor, idDispositivo: string | null, op: OperacaoSync, agora: number): ResultadoOperacao {
     const problema = problemasDaOperacao(op);
     if (problema) return rejeitada(op, 'DADOS_INVALIDOS', problema);
@@ -224,6 +253,21 @@ export class ServidorSincronizacaoMemoria {
       };
     }
 
+    // RN11 (SCRUM-406): antes da regra de conflito. O reenvio de uma versão
+    // igual à guardada não é uma edição e passa direto.
+    if (entidade === 'Proposta' && !(guardado && mesmoConteudo(guardado.versao, versao))) {
+      const rn11 = verificarGravacaoRN11({
+        papel: sessao.papel,
+        statusAtual: guardado ? statusDe(guardado.versao) : null,
+        statusBase: guardado ? this.statusNaVersao(chaveRegistro, op.baseUpdatedAt ?? null) ?? statusDe(guardado.versao) : null,
+        statusNovo: versao.dados.status_proposta,
+      });
+      if (!rn11.permitido) {
+        if (chaveEnvio) this.ultimosEnvios.set(chaveEnvio, { impressao, mensagemDescarte: null });
+        return rejeitada(op, 'RN11', rn11.mensagem);
+      }
+    }
+
     const r = resolverConflito({
       entidade,
       atual: guardado?.versao ?? null,
@@ -250,6 +294,7 @@ export class ServidorSincronizacaoMemoria {
       default:
         this.seq += 1;
         this.registros.set(chaveRegistro, { entidade, versao: r.vencedora, seq: this.seq, idDispositivo });
+        if (entidade === 'Proposta') this.guardarStatusDaVersao(chaveRegistro, r.vencedora);
         if (chaveEnvio) this.ultimosEnvios.set(chaveEnvio, { impressao, mensagemDescarte: null });
         // Quem teve a alteração sobrescrita fica sabendo no próximo pull.
         if (r.aviso) this.avisosPendentes.push(r.aviso);
