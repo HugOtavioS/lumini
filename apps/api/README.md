@@ -30,6 +30,10 @@ test/
 
 Node.js + NestJS (API REST) · PostgreSQL no Amazon RDS · JWT com refresh token · hospedagem AWS ainda em definição (tarefa NOVO-102 do backlog).
 
+## Documentação da API
+
+Especificação OpenAPI 3: [`docs/api/openapi.yaml`](../../docs/api/openapi.yaml) (abra [`docs/api/index.html`](../../docs/api/index.html) no navegador para ver no Swagger UI).
+
 ## Regras que a API precisa aplicar no push (já prontas em `@lumini/sync`)
 
 O servidor de referência (`packages/sync/src/servidor/servidorReferencia.ts`) é a especificação executável do `POST /sync/push` e do `POST /sync/pull`. A API importa as regras do pacote em vez de reescrevê-las.

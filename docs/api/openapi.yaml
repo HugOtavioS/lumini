@@ -1,0 +1,306 @@
+openapi: 3.0.3
+info:
+  title: Lumini — API de Sincronização
+  version: 0.1.0
+  description: |
+    API REST única do Lumini (NestJS), usada pelo aplicativo mobile do técnico e pelo painel web do gestor.
+
+    **Responsabilidades (DAS v1.2 / decisão D23):** autenticação (JWT com refresh token), autorização por papel
+    (RBAC: Técnico e Gestor Comercial) com isolamento por empresa, sincronização (push e pull) e persistência.
+    **A API não executa cálculos**: dimensionamento, precificação e viabilidade rodam no app e no navegador
+    (pacote `@lumini/domain`).
+
+    **Situação (29/10/2026):** contrato definido e validado por testes. As regras do push e do pull estão
+    implementadas no servidor de referência `packages/sync/src/servidor/servidorReferencia.ts`, contra o qual
+    rodam os testes de integração offline → reconexão → sincronização (`packages/sync/src/integracao.test.ts`).
+    A implementação NestJS (SCRUM-30) segue esta especificação.
+
+    Tipos de origem: `packages/sync/src/contrato.ts`. Nomes dos campos de `dados`: Dicionário de Dados v1.4 (snake_case).
+servers:
+  - url: https://api.lumini.app/v1
+    description: Produção (hospedagem AWS em definição — NOVO-102)
+  - url: http://localhost:3000/v1
+    description: Desenvolvimento
+tags:
+  - name: Autenticação
+  - name: Sincronização
+  - name: Contingência
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      tags: [Autenticação]
+      summary: Login do técnico (app) ou do gestor (web) — RF01 / RF20
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, senha]
+              properties:
+                email: { type: string, format: email, example: carlos@lumini.com }
+                senha: { type: string, format: password, minLength: 8 }
+      responses:
+        '200':
+          description: Sessão criada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sessao' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403':
+          description: Usuário inativo, ou papel Técnico tentando entrar na web (RF20, 3b).
+  /auth/refresh:
+    post:
+      tags: [Autenticação]
+      summary: Renova o token de acesso (rotação do refresh token)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: Nova sessão.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sessao' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+  /sync/push:
+    post:
+      tags: [Sincronização]
+      summary: Envia a fila de alterações do aparelho (RF15 / SCRUM-82, 83, 406)
+      description: |
+        Cada operação é avaliada separadamente, em ordem de dependência
+        (Cliente → Instalação → Medição → Simulação de Sombreamento → Proposta → Solicitação de Upgrade):
+
+        1. dados mínimos válidos (`DADOS_INVALIDOS`);
+        2. mesma empresa do usuário (`OUTRA_EMPRESA`);
+        3. **RN07**: o técnico só envia proposta "Gerada" ou posterior; "Em elaboração" e "Reaberta" ficam no aparelho (`RN07`);
+        4. registro pai já existente — recusa **retentável** (`DEPENDENCIA_AUSENTE`);
+        5. reenvio de uma resposta perdida não gera nada novo (idempotência pelo UUID e pelo aparelho);
+        6. **RN11**: o papel precisa poder editar a proposta no status em que ela estava quando a edição começou;
+           "Aprovada" e "Recusada" são somente leitura (`RN11`);
+        7. conflito entre edições concorrentes: **last-write-wins** por `updatedAt`, com Log de Auditoria campo a campo
+           e aviso para quem perdeu a alteração.
+
+        Um lote com operações recusadas responde 200; a situação de cada operação vem em `resultados`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequisicaoPush' }
+      responses:
+        '200':
+          description: Lote processado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespostaPush' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '429':
+          description: Muitas requisições; o app respeita o cabeçalho Retry-After (backoff exponencial).
+          headers:
+            Retry-After: { schema: { type: integer }, description: Segundos de espera. }
+        '503':
+          description: API indisponível; a fila tenta de novo com backoff.
+  /sync/pull:
+    post:
+      tags: [Sincronização]
+      summary: Baixa o que mudou desde o último cursor e os avisos do usuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequisicaoPull' }
+      responses:
+        '200':
+          description: Alterações e avisos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespostaPull' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+  /contingencia/versao:
+    get:
+      tags: [Contingência]
+      summary: Versão mais recente da base de contingência de HSP (SCRUM-85)
+      responses:
+        '200':
+          description: Versão publicada.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [versao, publicadaEm]
+                properties:
+                  versao: { type: string, example: '2026.10.1' }
+                  publicadaEm: { type: string, format: date-time }
+  /contingencia/{versao}:
+    get:
+      tags: [Contingência]
+      summary: Baixa uma versão da base de contingência (HSP médio por UF)
+      parameters:
+        - in: path
+          name: versao
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Base completa (as 27 UFs). O app recusa base incompleta ou com HSP fora de 2–8.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [versao, publicadaEm, hsp]
+                properties:
+                  versao: { type: string }
+                  publicadaEm: { type: string, format: date-time }
+                  hsp:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      required: [hsp, latitude]
+                      properties:
+                        hsp: { type: number, example: 4.9 }
+                        latitude: { type: number, example: -23.55 }
+        '404': { description: Versão inexistente. }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token de acesso com usuário, empresa e papel (Técnico ou Gestor).
+  responses:
+    NaoAutenticado:
+      description: Token ausente, inválido ou expirado. O app renova a sessão pelo refresh token.
+  schemas:
+    Sessao:
+      type: object
+      required: [accessToken, refreshToken, usuario]
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        expiraEm: { type: string, format: date-time }
+        usuario:
+          type: object
+          properties:
+            idUsuario: { type: string, format: uuid }
+            idEmpresa: { type: string, format: uuid }
+            nome: { type: string }
+            papel: { type: string, enum: [Tecnico, Gestor] }
+    EntidadeSincronizavel:
+      type: string
+      enum: [Cliente, Instalacao, Medicao, SimulacaoSombreamento, Proposta, SolicitacaoUpgrade]
+    VersaoRegistro:
+      type: object
+      required: [id, idEmpresa, updatedAt, updatedBy, dados]
+      properties:
+        id: { type: string, description: UUID gerado no dispositivo (idempotência). }
+        idEmpresa: { type: string }
+        updatedAt: { type: string, format: date-time, description: 'Momento da alteração; mais de 2 min à frente da hora do servidor é corrigido.' }
+        updatedBy: { type: string, description: Usuário que alterou. }
+        dados:
+          type: object
+          additionalProperties: true
+          description: Campos do Dicionário de Dados. Na Proposta, inclui `itens` (Item da Proposta) e `status_proposta`.
+          example:
+            id_proposta: pro-1
+            id_instalacao: ins-1
+            status_proposta: Gerada
+            potencia_kwp: 4.4
+            valor_total: 25275
+            condicao_pagamento: Parcelado
+            itens:
+              - { id_item: pro-1-mod, id_equipamento: mod-cs-550, quantidade: 8, preco_unitario: 1290 }
+    OperacaoSync:
+      type: object
+      required: [idOperacao, entidade, baseUpdatedAt, versao]
+      properties:
+        idOperacao: { type: string, example: 'Proposta:pro-1' }
+        entidade: { $ref: '#/components/schemas/EntidadeSincronizavel' }
+        baseUpdatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: updated_at da versão do servidor que o aparelho conhecia ao começar a editar; null para registro criado no aparelho.
+        versao: { $ref: '#/components/schemas/VersaoRegistro' }
+    RequisicaoPush:
+      type: object
+      required: [idDispositivo, operacoes]
+      properties:
+        idDispositivo: { type: string }
+        operacoes:
+          type: array
+          items: { $ref: '#/components/schemas/OperacaoSync' }
+    ResultadoOperacao:
+      oneOf:
+        - type: object
+          required: [idOperacao, situacao, versaoAceita, conflito, avisos]
+          properties:
+            idOperacao: { type: string }
+            situacao: { type: string, enum: [aplicada] }
+            versaoAceita: { $ref: '#/components/schemas/VersaoRegistro' }
+            conflito: { type: boolean, description: true quando sobrescreveu uma alteração concorrente. }
+            avisos: { type: array, items: { type: string } }
+        - type: object
+          required: [idOperacao, situacao, versaoServidor, mensagem]
+          properties:
+            idOperacao: { type: string }
+            situacao: { type: string, enum: [descartada] }
+            versaoServidor: { $ref: '#/components/schemas/VersaoRegistro' }
+            mensagem: { type: string }
+        - type: object
+          required: [idOperacao, situacao, codigo, mensagem, retentavel]
+          properties:
+            idOperacao: { type: string }
+            situacao: { type: string, enum: [rejeitada] }
+            codigo: { type: string, enum: [DADOS_INVALIDOS, RN07, RN11, DEPENDENCIA_AUSENTE, OUTRA_EMPRESA, SEM_PERMISSAO] }
+            mensagem: { type: string }
+            retentavel: { type: boolean }
+    RespostaPush:
+      type: object
+      required: [horaServidor, resultados]
+      properties:
+        horaServidor: { type: string, format: date-time }
+        resultados:
+          type: array
+          items: { $ref: '#/components/schemas/ResultadoOperacao' }
+    RequisicaoPull:
+      type: object
+      required: [cursor]
+      properties:
+        cursor: { type: string, nullable: true, description: Cursor do último pull; null no primeiro. }
+        idDispositivo: { type: string }
+    AvisoSobrescrita:
+      type: object
+      properties:
+        idAviso: { type: string }
+        idUsuario: { type: string }
+        entidade: { $ref: '#/components/schemas/EntidadeSincronizavel' }
+        idRegistro: { type: string }
+        sobrescritoPor: { type: string }
+        em: { type: string, format: date-time }
+        mensagem: { type: string }
+    RespostaPull:
+      type: object
+      required: [horaServidor, cursor, registros, avisos]
+      properties:
+        horaServidor: { type: string, format: date-time }
+        cursor: { type: string }
+        registros:
+          type: array
+          items:
+            type: object
+            properties:
+              entidade: { $ref: '#/components/schemas/EntidadeSincronizavel' }
+              versao: { $ref: '#/components/schemas/VersaoRegistro' }
+        avisos:
+          type: array
+          items: { $ref: '#/components/schemas/AvisoSobrescrita' }
