@@ -27,6 +27,11 @@
  *
  * Simplificações: o pull devolve todos os registros sincronizáveis da
  * empresa (a API filtra por papel e por técnico), e não há autenticação.
+ *
+ * As regras ficam em `ServidorSincronizacao`, que grava por uma porta
+ * (`ArmazenamentoServidor`). `ServidorSincronizacaoMemoria` usa a porta em
+ * memória (testes); a API usa a mesma classe com a porta em SQLite (e, depois,
+ * PostgreSQL no RDS). A porta é síncrona porque o SQLite do Node é síncrono.
  */
 import {
   DEPENDENCIAS,
@@ -63,7 +68,7 @@ export interface OpcoesServidor {
   gerarId?: () => string;
 }
 
-interface Guardado {
+export interface Guardado {
   entidade: EntidadeSincronizavel;
   versao: VersaoRegistro;
   /** Ordem de gravação, usada como cursor do pull. */
@@ -73,10 +78,35 @@ interface Guardado {
 }
 
 /** Último envio de um aparelho para um registro, para reconhecer o reenvio quando a resposta se perde. */
-interface UltimoEnvio {
+export interface UltimoEnvio {
   impressao: string;
   /** Mensagem da resposta quando a alteração foi descartada pelo last-write-wins; `null` quando foi gravada. */
   mensagemDescarte: string | null;
+}
+
+
+/** Onde o servidor guarda o que recebe. Uma implementação por banco. */
+export interface ArmazenamentoServidor {
+  /** Registro atual (chave `Entidade:id`). */
+  obter(chave: string): Guardado | undefined;
+  /** Grava a versão vencedora e devolve a nova posição (cursor do pull). */
+  gravar(chave: string, registro: Omit<Guardado, 'seq'>): number;
+  /** Maior posição gravada até agora (0 se vazio). */
+  posicaoAtual(): number;
+  /** Registros da empresa gravados depois da posição `desde`, em ordem. */
+  listarDesde(idEmpresa: string, desde: number): Guardado[];
+  statusNaVersao(chave: string, updatedAt: string): StatusProposta | null;
+  guardarStatusDaVersao(chave: string, updatedAt: string, status: StatusProposta): void;
+  /** Chave: `idDispositivo|Entidade:id`. */
+  ultimoEnvio(chaveEnvio: string): UltimoEnvio | undefined;
+  registrarEnvio(chaveEnvio: string, envio: UltimoEnvio): void;
+  registrarAuditoria(linhas: readonly RegistroAuditoria[]): void;
+  registrarLogSincronizacao(linha: RegistroLogSincronizacao): void;
+  adicionarAviso(aviso: AvisoSobrescrita): void;
+  /** Devolve e remove os avisos pendentes do usuário. */
+  retirarAvisos(idUsuario: string): AvisoSobrescrita[];
+  /** Tudo ou nada (um push inteiro). */
+  emTransacao<T>(tarefa: () => T): T;
 }
 
 function chave(entidade: EntidadeSincronizavel, id: string): string {
@@ -115,19 +145,76 @@ function problemasDaOperacao(op: OperacaoSync): string | null {
   return null;
 }
 
-export class ServidorSincronizacaoMemoria {
+/** Porta em memória: testes e demonstrações. */
+export class ArmazenamentoMemoria implements ArmazenamentoServidor {
   readonly logAuditoria: RegistroAuditoria[] = [];
   readonly logSincronizacao: RegistroLogSincronizacao[] = [];
   private readonly registros = new Map<string, Guardado>();
-  /** Chave: `idDispositivo|entidade:id`. */
-  private readonly ultimosEnvios = new Map<string, UltimoEnvio>();
-  private readonly avisosPendentes: AvisoSobrescrita[] = [];
+  private readonly envios = new Map<string, UltimoEnvio>();
+  private readonly avisos: AvisoSobrescrita[] = [];
+  private readonly statusPorVersao = new Map<string, Map<string, StatusProposta>>();
   private seq = 0;
+
+  obter(chaveRegistro: string): Guardado | undefined {
+    return this.registros.get(chaveRegistro);
+  }
+  gravar(chaveRegistro: string, registro: Omit<Guardado, 'seq'>): number {
+    this.seq += 1;
+    this.registros.set(chaveRegistro, { ...registro, seq: this.seq });
+    return this.seq;
+  }
+  posicaoAtual(): number {
+    return this.seq;
+  }
+  listarDesde(idEmpresa: string, desde: number): Guardado[] {
+    return [...this.registros.values()].filter((g) => g.versao.idEmpresa === idEmpresa && g.seq > desde).sort((a, b) => a.seq - b.seq);
+  }
+  todos(): Guardado[] {
+    return [...this.registros.values()].sort((a, b) => a.seq - b.seq);
+  }
+  statusNaVersao(chaveRegistro: string, updatedAt: string): StatusProposta | null {
+    return this.statusPorVersao.get(chaveRegistro)?.get(updatedAt) ?? null;
+  }
+  guardarStatusDaVersao(chaveRegistro: string, updatedAt: string, status: StatusProposta): void {
+    const porVersao = this.statusPorVersao.get(chaveRegistro) ?? new Map<string, StatusProposta>();
+    porVersao.set(updatedAt, status);
+    this.statusPorVersao.set(chaveRegistro, porVersao);
+  }
+  ultimoEnvio(chaveEnvio: string): UltimoEnvio | undefined {
+    return this.envios.get(chaveEnvio);
+  }
+  registrarEnvio(chaveEnvio: string, envio: UltimoEnvio): void {
+    this.envios.set(chaveEnvio, envio);
+  }
+  registrarAuditoria(linhas: readonly RegistroAuditoria[]): void {
+    this.logAuditoria.push(...linhas);
+  }
+  registrarLogSincronizacao(linha: RegistroLogSincronizacao): void {
+    this.logSincronizacao.push(linha);
+  }
+  adicionarAviso(aviso: AvisoSobrescrita): void {
+    this.avisos.push(aviso);
+  }
+  retirarAvisos(idUsuario: string): AvisoSobrescrita[] {
+    const meus = this.avisos.filter((a) => a.idUsuario === idUsuario);
+    for (const aviso of meus) this.avisos.splice(this.avisos.indexOf(aviso), 1);
+    return meus;
+  }
+  emTransacao<T>(tarefa: () => T): T {
+    return tarefa();
+  }
+}
+
+/** As regras do push e do pull, sobre qualquer armazenamento. */
+export class ServidorSincronizacao {
   private readonly relogio: () => number;
   private readonly toleranciaRelogioMs: number | undefined;
   private readonly gerarId: () => string;
 
-  constructor(opcoes: OpcoesServidor = {}) {
+  constructor(
+    protected readonly armazenamento: ArmazenamentoServidor,
+    opcoes: OpcoesServidor = {},
+  ) {
     this.relogio = opcoes.relogio ?? (() => Date.now());
     this.toleranciaRelogioMs = opcoes.toleranciaRelogioMs;
     this.gerarId = opcoes.gerarId ?? gerarIdPadrao;
@@ -139,68 +226,54 @@ export class ServidorSincronizacaoMemoria {
     const idDispositivo = typeof requisicao?.idDispositivo === 'string' && requisicao.idDispositivo !== '' ? requisicao.idDispositivo : null;
     const ordem = (op: OperacaoSync) => (ehEntidadeSincronizavel(op?.entidade) ? ORDEM_DEPENDENCIA[op.entidade] : 99);
     const operacoes = Array.isArray(requisicao?.operacoes) ? [...requisicao.operacoes].sort((a, b) => ordem(a) - ordem(b)) : [];
-    const resultados = operacoes.map((op) => this.aplicar(sessao, idDispositivo, op, agora));
-    const recusadas = resultados.filter((r) => r.situacao === 'rejeitada').length;
-    this.logSincronizacao.push({
-      idLogSync: this.gerarId(),
-      idUsuario: sessao.idUsuario,
-      idDispositivo: idDispositivo ?? 'desconhecido',
-      dataHora: isoDeMs(agora),
-      tipo: 'Push',
-      status: 'Sucesso',
-      qtdRegistros: operacoes.length,
-      mensagemErro: recusadas > 0 ? `${recusadas} ${recusadas === 1 ? 'registro recusado' : 'registros recusados'}.` : null,
+    return this.armazenamento.emTransacao(() => {
+      const resultados = operacoes.map((op) => this.aplicar(sessao, idDispositivo, op, agora));
+      const recusadas = resultados.filter((r) => r.situacao === 'rejeitada').length;
+      this.armazenamento.registrarLogSincronizacao({
+        idLogSync: this.gerarId(),
+        idUsuario: sessao.idUsuario,
+        idDispositivo: idDispositivo ?? 'desconhecido',
+        dataHora: isoDeMs(agora),
+        tipo: 'Push',
+        status: 'Sucesso',
+        qtdRegistros: operacoes.length,
+        mensagemErro: recusadas > 0 ? `${recusadas} ${recusadas === 1 ? 'registro recusado' : 'registros recusados'}.` : null,
+      });
+      return { horaServidor: isoDeMs(agora), resultados };
     });
-    return { horaServidor: isoDeMs(agora), resultados };
   }
 
   /** POST /sync/pull: o que mudou desde o último cursor e os avisos do usuário. */
   pull(sessao: SessaoServidor, requisicao: RequisicaoPull & { idDispositivo?: string }): RespostaPull {
     const agora = this.relogio();
-    const desde = requisicao.cursor ? Number(requisicao.cursor) : 0;
-    const registros = [...this.registros.values()]
-      .filter((g) => g.versao.idEmpresa === sessao.idEmpresa && g.seq > desde)
-      .sort((a, b) => a.seq - b.seq)
-      .map((g) => ({ entidade: g.entidade, versao: g.versao }));
-    const avisos = this.avisosPendentes.filter((a) => a.idUsuario === sessao.idUsuario);
-    for (const aviso of avisos) this.avisosPendentes.splice(this.avisosPendentes.indexOf(aviso), 1);
-    this.logSincronizacao.push({
-      idLogSync: this.gerarId(),
-      idUsuario: sessao.idUsuario,
-      idDispositivo: requisicao.idDispositivo ?? 'desconhecido',
-      dataHora: isoDeMs(agora),
-      tipo: 'Pull',
-      status: 'Sucesso',
-      qtdRegistros: registros.length,
-      mensagemErro: null,
+    const desde = requisicao?.cursor ? Number(requisicao.cursor) || 0 : 0;
+    return this.armazenamento.emTransacao(() => {
+      const registros = this.armazenamento
+        .listarDesde(sessao.idEmpresa, desde)
+        .map((g) => ({ entidade: g.entidade, versao: g.versao }));
+      const avisos = this.armazenamento.retirarAvisos(sessao.idUsuario);
+      this.armazenamento.registrarLogSincronizacao({
+        idLogSync: this.gerarId(),
+        idUsuario: sessao.idUsuario,
+        idDispositivo: requisicao?.idDispositivo ?? 'desconhecido',
+        dataHora: isoDeMs(agora),
+        tipo: 'Pull',
+        status: 'Sucesso',
+        qtdRegistros: registros.length,
+        mensagemErro: null,
+      });
+      return { horaServidor: isoDeMs(agora), cursor: String(this.armazenamento.posicaoAtual()), registros, avisos };
     });
-    return { horaServidor: isoDeMs(agora), cursor: String(this.seq), registros, avisos };
   }
 
-  /** Para os testes: a versão guardada de um registro. */
+  /** A versão guardada de um registro. */
   obter(entidade: EntidadeSincronizavel, id: string): VersaoRegistro | undefined {
-    return this.registros.get(chave(entidade, id))?.versao;
-  }
-
-  /** Para os testes: todos os registros de uma entidade. */
-  listar(entidade: EntidadeSincronizavel): VersaoRegistro[] {
-    return [...this.registros.values()].filter((g) => g.entidade === entidade).sort((a, b) => a.seq - b.seq).map((g) => g.versao);
-  }
-
-  /** RN11: status de cada versão gravada de uma proposta, para avaliar a permissão na versão-base. */
-  private readonly statusPorVersao = new Map<string, Map<string, StatusProposta>>();
-
-  private guardarStatusDaVersao(chaveRegistro: string, versao: VersaoRegistro): void {
-    const status = statusDe(versao);
-    if (status === null) return;
-    const porVersao = this.statusPorVersao.get(chaveRegistro) ?? new Map<string, StatusProposta>();
-    porVersao.set(versao.updatedAt, status);
-    this.statusPorVersao.set(chaveRegistro, porVersao);
+    return this.armazenamento.obter(chave(entidade, id))?.versao;
   }
 
   private statusNaVersao(chaveRegistro: string, updatedAt: string | null): StatusProposta | null {
     if (updatedAt === null) return null;
-    return this.statusPorVersao.get(chaveRegistro)?.get(updatedAt) ?? null;
+    return this.armazenamento.statusNaVersao(chaveRegistro, updatedAt);
   }
 
   private aplicar(sessao: SessaoServidor, idDispositivo: string | null, op: OperacaoSync, agora: number): ResultadoOperacao {
@@ -212,7 +285,7 @@ export class ServidorSincronizacaoMemoria {
       return rejeitada(op, 'OUTRA_EMPRESA', 'O registro pertence a outra empresa.');
     }
     const chaveRegistro = chave(entidade, versao.id);
-    const guardado = this.registros.get(chaveRegistro);
+    const guardado = this.armazenamento.obter(chaveRegistro);
     if (guardado && guardado.versao.idEmpresa !== sessao.idEmpresa) {
       return rejeitada(op, 'OUTRA_EMPRESA', 'O registro pertence a outra empresa.');
     }
@@ -232,7 +305,7 @@ export class ServidorSincronizacaoMemoria {
       if (typeof idPai !== 'string' || idPai === '') {
         return rejeitada(op, 'DADOS_INVALIDOS', `Falta o campo ${dependencia.campo}.`);
       }
-      const pai = this.registros.get(chave(dependencia.entidade, idPai));
+      const pai = this.armazenamento.obter(chave(dependencia.entidade, idPai));
       if (!pai || pai.versao.idEmpresa !== sessao.idEmpresa) {
         return rejeitada(op, 'DEPENDENCIA_AUSENTE', `O registro ${dependencia.entidade} ${idPai} ainda não chegou ao servidor.`, true);
       }
@@ -243,7 +316,7 @@ export class ServidorSincronizacaoMemoria {
     // vez. O aparelho recebe a versão atual, sem nada novo no log nem avisos.
     const chaveEnvio = idDispositivo === null ? null : `${idDispositivo}|${chaveRegistro}`;
     const impressao = impressaoDe(versao);
-    const envioAnterior = chaveEnvio === null ? undefined : this.ultimosEnvios.get(chaveEnvio);
+    const envioAnterior = chaveEnvio === null ? undefined : this.armazenamento.ultimoEnvio(chaveEnvio);
     if (guardado && envioAnterior?.impressao === impressao && !mesmoConteudo(guardado.versao, versao)) {
       return {
         idOperacao: op.idOperacao,
@@ -263,7 +336,7 @@ export class ServidorSincronizacaoMemoria {
         statusNovo: versao.dados.status_proposta,
       });
       if (!rn11.permitido) {
-        if (chaveEnvio) this.ultimosEnvios.set(chaveEnvio, { impressao, mensagemDescarte: null });
+        if (chaveEnvio) this.armazenamento.registrarEnvio(chaveEnvio, { impressao, mensagemDescarte: null });
         return rejeitada(op, 'RN11', rn11.mensagem);
       }
     }
@@ -279,26 +352,52 @@ export class ServidorSincronizacaoMemoria {
       gerarId: this.gerarId,
       ...(this.toleranciaRelogioMs !== undefined && { toleranciaRelogioMs: this.toleranciaRelogioMs }),
     });
-    this.logAuditoria.push(...r.auditoria);
+    this.armazenamento.registrarAuditoria(r.auditoria);
 
     switch (r.decisao) {
       case 'repetida':
-        if (chaveEnvio) this.ultimosEnvios.set(chaveEnvio, { impressao, mensagemDescarte: null });
+        if (chaveEnvio) this.armazenamento.registrarEnvio(chaveEnvio, { impressao, mensagemDescarte: null });
         return { idOperacao: op.idOperacao, situacao: 'aplicada', versaoAceita: r.vencedora, conflito: false, avisos: [] };
       case 'manter': {
         // Quem enviou fica sabendo na própria resposta.
         const mensagem = r.aviso?.mensagem ?? 'Havia uma versão mais recente no servidor.';
-        if (chaveEnvio) this.ultimosEnvios.set(chaveEnvio, { impressao, mensagemDescarte: mensagem });
+        if (chaveEnvio) this.armazenamento.registrarEnvio(chaveEnvio, { impressao, mensagemDescarte: mensagem });
         return { idOperacao: op.idOperacao, situacao: 'descartada', versaoServidor: r.vencedora, mensagem };
       }
       default:
-        this.seq += 1;
-        this.registros.set(chaveRegistro, { entidade, versao: r.vencedora, seq: this.seq, idDispositivo });
-        if (entidade === 'Proposta') this.guardarStatusDaVersao(chaveRegistro, r.vencedora);
-        if (chaveEnvio) this.ultimosEnvios.set(chaveEnvio, { impressao, mensagemDescarte: null });
+        this.armazenamento.gravar(chaveRegistro, { entidade, versao: r.vencedora, idDispositivo });
+        if (entidade === 'Proposta') {
+          const status = statusDe(r.vencedora);
+          if (status !== null) this.armazenamento.guardarStatusDaVersao(chaveRegistro, r.vencedora.updatedAt, status);
+        }
+        if (chaveEnvio) this.armazenamento.registrarEnvio(chaveEnvio, { impressao, mensagemDescarte: null });
         // Quem teve a alteração sobrescrita fica sabendo no próximo pull.
-        if (r.aviso) this.avisosPendentes.push(r.aviso);
+        if (r.aviso) this.armazenamento.adicionarAviso(r.aviso);
         return { idOperacao: op.idOperacao, situacao: 'aplicada', versaoAceita: r.vencedora, conflito: r.conflito, avisos: r.observacoes };
     }
+  }
+}
+
+/** Servidor de referência em memória (testes de integração e do app). */
+export class ServidorSincronizacaoMemoria extends ServidorSincronizacao {
+  private readonly memoria: ArmazenamentoMemoria;
+
+  constructor(opcoes: OpcoesServidor = {}) {
+    const memoria = new ArmazenamentoMemoria();
+    super(memoria, opcoes);
+    this.memoria = memoria;
+  }
+
+  get logAuditoria(): RegistroAuditoria[] {
+    return this.memoria.logAuditoria;
+  }
+
+  get logSincronizacao(): RegistroLogSincronizacao[] {
+    return this.memoria.logSincronizacao;
+  }
+
+  /** Para os testes: todos os registros de uma entidade. */
+  listar(entidade: EntidadeSincronizavel): VersaoRegistro[] {
+    return this.memoria.todos().filter((g) => g.entidade === entidade).map((g) => g.versao);
   }
 }

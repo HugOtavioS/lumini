@@ -13,7 +13,9 @@
     "test:detalhado": "npm run test:detalhado --workspaces --if-present",
     "demo": "npm run demo -w @lumini/domain",
     "demo:sem-internet": "npm run demo:sem-internet -w @lumini/domain",
-    "demo:sync": "npm run demo -w @lumini/sync"
+    "demo:sync": "npm run demo -w @lumini/sync",
+    "api": "npm run start -w @lumini/api",
+    "painel": "npm run dev -w @lumini/web"
   },
   "engines": {
     "node": ">=22.13"

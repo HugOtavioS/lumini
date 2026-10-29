@@ -1,0 +1,28 @@
+{
+  "name": "@lumini/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Painel web do Gestor Comercial do Lumini (Vite + React + TypeScript). Consome a API (apps/api) e usa as regras de @lumini/sync e @lumini/domain.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@lumini/domain": "0.1.0",
+    "@lumini/sync": "0.1.0",
+    "lucide-react": "^1.48.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-router": "~7.18.5"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "@types/react-dom": "~19.2.2",
+    "@vitejs/plugin-react": "~5.2.0",
+    "typescript": "~5.9.3",
+    "vite": "~7.3.7"
+  }
+}

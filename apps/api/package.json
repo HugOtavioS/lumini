@@ -1,0 +1,29 @@
+{
+  "name": "@lumini/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "API do Lumini (NestJS): autenticação JWT, sincronização (push/pull) com as regras do @lumini/sync e rotas do painel do gestor. Banco local em SQLite; PostgreSQL no Amazon RDS na implantação.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --disable-warning=ExperimentalWarning --env-file-if-exists=.env src/main.ts",
+    "start": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env src/main.ts",
+        "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@lumini/domain": "0.1.0",
+    "@lumini/sync": "0.1.0",
+    "@nestjs/common": "~11.2.8",
+    "@nestjs/core": "~11.2.8",
+    "@nestjs/platform-express": "~11.2.8",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.20.4",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.11"
+  }
+}

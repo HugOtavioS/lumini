@@ -1,72 +1,39 @@
-# Lumini — API (Backend)
+# Lumini — API (NestJS)
 
-API NestJS única para os dois clientes (app mobile e painel web), com controle de acesso baseado em papel (RBAC).
+Autenticação (JWT com refresh token e papel), sincronização (`POST /sync/push` e `/sync/pull`) com as regras do `@lumini/sync` (RN07, RN11, conflito com Log de Auditoria), base de contingência (`/contingencia/*`) e rotas do painel do gestor (`/admin/*`). **A API não calcula** (D15).
 
-## Responsabilidades
+## Rodar local (banco SQLite)
 
-**Somente** autenticação (JWT com refresh token), autorização (RBAC + isolamento por empresa), sincronização (pull e push) e persistência dos dados enviados pelos clientes, incluindo a contagem do limite do plano Freemium. **A API não executa cálculos** — dimensionamento, precificação e viabilidade são calculados no app e na web, usando o pacote `packages/domain`.
-
-## Estrutura planejada (a criar)
-
-```
-apps/api/src/
-  modules/
-    auth/
-    users/
-    companies/
-    clients/
-    proposals/
-    equipment/
-    pricing/
-    weather/      # integração + fallback de contingência
-    sync/
-  common/         # guards, interceptors, decorators (RBAC/JWT)
-  config/
-prisma/ ou /migrations
-test/
+```bash
+npm install          # na raiz do monorepo
+npm run api          # http://localhost:3000  (banco em apps/api/dados/lumini.db)
+npm run painel       # outro terminal: http://localhost:5173
 ```
 
-## Stack
+Na primeira execução a API cria a empresa de demonstração **Solar Vale Energia** com 8 propostas e o catálogo inicial. Senha de desenvolvimento `lumini123`:
 
-Node.js + NestJS (API REST) · PostgreSQL no Amazon RDS · JWT com refresh token · hospedagem AWS ainda em definição (tarefa NOVO-102 do backlog).
+| E-mail | Papel |
+|---|---|
+| gestora@solarvale.com.br | Gestora (painel web) |
+| carlos@lumini.com | Técnico (mesmo id do app: `tec-001`) |
+| ana@solarvale.com.br | Técnica |
 
-## Documentação da API
+Para o app sincronizar de verdade: `EXPO_PUBLIC_API_URL=http://<ip-do-computador>:3000` em `apps/mobile/.env.local`.
 
-Especificação OpenAPI 3: [`docs/api/openapi.yaml`](../../docs/api/openapi.yaml) (abra [`docs/api/index.html`](../../docs/api/index.html) no navegador para ver no Swagger UI).
+Variáveis (opcional, `apps/api/.env`): `PORT`, `LUMINI_DB`, `JWT_SECRET` (obrigatória em produção), `LUMINI_SEED=nao`, `CORS_ORIGENS`.
 
-## Regras que a API precisa aplicar no push (já prontas em `@lumini/sync`)
+## Banco
 
-O servidor de referência (`packages/sync/src/servidor/servidorReferencia.ts`) é a especificação executável do `POST /sync/push` e do `POST /sync/pull`. A API importa as regras do pacote em vez de reescrevê-las.
+`src/db/migracoes.ts` (SCRUM-29): empresa, usuário, assinatura, catálogo, `registro_sync` (registros versionados do contrato) com views `vw_cliente`, `vw_instalacao`, `vw_proposta`, `vw_item_proposta`, logs de auditoria e de sincronização, base de contingência. Toda tabela de negócio tem `id_empresa`.
 
-### RN11 — quem edita em cada status (SCRUM-406)
+## Migrar para o Amazon RDS (PostgreSQL)
 
-Para cada operação de `Proposta`, depois do RN07 e da dependência e **antes** da resolução de conflito (`resolverConflito`):
+Só a pasta `src/db/` muda:
+1. `banco.ts`: trocar `node:sqlite` por `pg` (Pool com `DATABASE_URL`, SSL).
+2. `migracoes.ts`: `TEXT` JSON → `JSONB`, `json_extract(dados,'$.x')` → `dados->>'x'`, `json_each` → `jsonb_array_elements`, datas → `TIMESTAMPTZ`, `INTEGER 0/1` → `BOOLEAN`.
+3. `armazenamentoSqlite.ts` → `armazenamentoPostgres.ts` implementando a mesma porta `ArmazenamentoServidor` do `@lumini/sync`. Como o `pg` é assíncrono, a porta e o `ServidorSincronizacao` passam a ter versão `async` (mudança mecânica: `await` nas chamadas).
+4. Os testes de `test/api.test.ts` rodam iguais contra o RDS de homologação.
 
-```ts
-import { verificarGravacaoRN11 } from '@lumini/sync';
+## Testes
 
-// guardada: versão atual no PostgreSQL (ou null)
-// statusNaBase: status da versão cujo updated_at = op.baseUpdatedAt (tabela de histórico ou log de auditoria)
-const rn11 = verificarGravacaoRN11({
-  papel: usuario.role === 'gestor' ? 'Gestor' : 'Tecnico',   // vem do JWT (SCRUM-397)
-  statusAtual: guardada?.status_proposta ?? null,
-  statusBase: guardada ? statusNaBase ?? guardada.status_proposta : null,
-  statusNovo: op.versao.dados.status_proposta,
-});
-if (!rn11.permitido) {
-  return { idOperacao: op.idOperacao, situacao: 'rejeitada', codigo: 'RN11', mensagem: rn11.mensagem, retentavel: false };
-}
-```
-
-Exceção: se o conteúdo recebido é igual ao guardado (reenvio de resposta perdida), não é edição e não passa pela RN11. Os cenários estão em `servidor.test.ts` (bloco "RN11") e devem passar contra a API quando ela existir.
-
-### Base de contingência (SCRUM-85)
-
-O app verifica uma vez por dia, quando online, se há versão nova da base de HSP por UF (`apps/mobile/src/data/contingency/contingencyUpdater.ts`). Endpoints esperados:
-
-- `GET /contingencia/versao` → `{ "versao": "2026.10.1", "publicadaEm": "2026-10-20T00:00:00Z" }`
-- `GET /contingencia/:versao` → `{ "versao", "publicadaEm", "hsp": { "SP": { "hsp": 4.9, "latitude": -23.55 }, ... } }` (as 27 UFs)
-
-O app recusa base incompleta ou com HSP fora de 2–8 e continua com a que tem.
-
-> Código ainda não implementado — esta pasta contém apenas este README como marcador da estrutura inicial (Sprint 1).
+`npm test -w @lumini/api` — 11 testes de ponta a ponta (login, 401/403, a fila real do app enviando por HTTP, RN11 no painel, carteira do técnico no pull, multi-tenant, catálogo, usuários, persistência após reiniciar).

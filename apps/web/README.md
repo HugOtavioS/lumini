@@ -1,40 +1,12 @@
 # Lumini — Painel Web (Gestor Comercial)
 
-Interface web usada pelo Gestor Comercial da empresa.
+Vite + React + TypeScript (decisão NOVO-101), seguindo as telas de `01_Desing/Telas/01_Web`.
 
-## Responsabilidades
-
-Login, listagem e detalhamento de propostas (incluindo o sombreamento obtido em campo), editor de propostas com recálculo em tempo real (mesmo pacote de domínio do app), dashboard com funil de vendas e relatórios, gestão do catálogo de equipamentos e preços, plano e assinatura (incluindo upgrade e atendimento de solicitações) e gestão de usuários da empresa.
-
-## Estrutura planejada (a criar)
-
-```
-apps/web/src/
-  pages/        # dashboard, propostas, catálogo, plano
-  components/
-  services/     # chamadas à API
-  hooks/
-public/
+```bash
+npm run api       # API local (http://localhost:3000)
+npm run painel    # http://localhost:5173 — gestora@solarvale.com.br / lumini123
 ```
 
-## Stack
+Telas: login, dashboard (funil, conversão, limite do plano, atividade recente, desempenho por técnico, valor por mês, origem RA × manual), propostas (filtros, busca, CSV), detalhe da proposta com as ações do gestor (botões de `acoesDoGestor` do `@lumini/sync` — RN11), catálogo (preço editável com duplo clique, ocultar item, cadastro validado pelo `@lumini/domain`), plano, equipe (cadastrar e desativar técnicos) e log de sincronizações.
 
-Framework da SPA em TypeScript ainda **em definição** (tarefa NOVO-101 do backlog — precisa estar decidido antes do Sprint 4). Reutiliza o pacote `packages/domain` para o recálculo no editor de propostas.
-
-## RN11 no editor de propostas (SCRUM-406)
-
-A regra de quem edita em cada status já está em `@lumini/sync` (o mesmo código usado pelo app e pela API). O editor web só precisa consultá-la para decidir o que mostrar:
-
-```ts
-import { acoesDoGestor, motivoBloqueio } from '@lumini/sync';
-
-const acoes = acoesDoGestor(proposta.status_proposta);
-// "Gerada":        editar, mover_negociacao, gerar_nova_versao, reabrir, aprovar, recusar
-// "Em negociação": editar, gerar_nova_versao, reabrir, aprovar, recusar
-// "Reaberta", "Em elaboração", "Aprovada", "Recusada": []  → editor somente leitura
-const aviso = motivoBloqueio('Gestor', proposta.status_proposta); // texto para o banner, ou null
-```
-
-Mesmo que a tela deixe passar, a API recusa a gravação fora da regra (código `RN11`).
-
-> Código ainda não implementado — esta pasta contém apenas este README como marcador da estrutura inicial (Sprint 1).
+Outra API: `VITE_API_URL=https://...` em `.env.local`.
