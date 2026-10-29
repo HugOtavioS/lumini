@@ -114,7 +114,7 @@ features/orcamento/
 └── index.ts                             # Barrel export da feature
 ```
 
-### 📏 Regras de Ouro para Features
+### 📏 Regras de importantes para Features
 
 1. **Isolamento:** Uma feature **nunca** importa diretamente de outra feature. Comunicação entre features acontece via `domain/` ou `shared/`.
 2. **Barrel Exports:** Cada feature expõe apenas o necessário via `index.ts`.
