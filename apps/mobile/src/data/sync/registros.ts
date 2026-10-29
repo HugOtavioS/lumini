@@ -175,10 +175,26 @@ export function registrosDaProposta(proposal: Proposal, ctx: ContextoSync): Entr
     .sort((a, b) => ORDEM_DEPENDENCIA[a.entidade] - ORDEM_DEPENDENCIA[b.entidade]);
 }
 
-/** A proposta pode subir agora? (RN07: só "Gerada" ou posterior; "Reaberta" fica no aparelho.) */
-export function propostaPodeSubir(proposal: Proposal, ctx: ContextoSync): boolean {
+/**
+ * O que impede a proposta de subir (SCRUM-405, regra do Misael): além do status
+ * do RN07, dimensionamento, precificação e PDF precisam estar concluídos.
+ * Lista vazia = pode subir.
+ */
+export function motivosBloqueioSync(proposal: Proposal, ctx: ContextoSync): string[] {
+  const motivos: string[] = [];
   const proposta = registrosDaProposta(proposal, ctx).find((e) => e.entidade === 'Proposta');
-  return proposta !== undefined && podeEntrarNaFila(proposta);
+  if (proposta === undefined || !podeEntrarNaFila(proposta)) {
+    motivos.push(`Status da proposta é ${statusParaContrato[proposal.status]}; a sincronização exige "Gerada" ou posterior (RN07).`);
+  }
+  if (!(proposal.systemKwp > 0) || !(proposal.monthlyGenerationKwh > 0)) motivos.push('Dimensionamento não concluído.');
+  if (!(proposal.pricing.total > 0) || proposal.items.length === 0) motivos.push('Precificação não concluída.');
+  if (!proposal.generatedAt) motivos.push('PDF da proposta não gerado.');
+  return motivos;
+}
+
+/** A proposta pode subir agora? (RN07 + SCRUM-405; "Reaberta" fica no aparelho.) */
+export function propostaPodeSubir(proposal: Proposal, ctx: ContextoSync): boolean {
+  return motivosBloqueioSync(proposal, ctx).length === 0;
 }
 
 /** Solicitação de upgrade (RF28) no formato do contrato. */

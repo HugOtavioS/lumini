@@ -260,6 +260,7 @@ function resultadoDaRodada(r: ResultadoRodada): SyncOutcome {
 
 /** Identificador desta instalação do app, guardado no banco local (Log de Sincronização, RNF11). */
 async function deviceId(db: BancoSql): Promise<string> {
+  // A migração `app_config` já cria a tabela; o IF NOT EXISTS cobre bancos injetados (testes).
   await db.executar('CREATE TABLE IF NOT EXISTS app_config (chave TEXT PRIMARY KEY, valor TEXT NOT NULL)');
   const [linha] = await db.consultar<{ valor: string }>("SELECT valor FROM app_config WHERE chave = 'id_dispositivo'");
   if (linha) return linha.valor;

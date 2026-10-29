@@ -8,6 +8,10 @@ import {
   httpContingencySource,
   type ContingencyCheckResult,
 } from '@/data/contingency/contingencyUpdater';
+import { inicializarContingencia, salvarBaseContingencia } from '@/data/contingency/contingencyStore';
+import { cancelarTarefaSync, registrarTarefaSync } from '@/data/sync/backgroundSync';
+import { definirServicoEmPrimeiroPlano, salvarContextoSync } from '@/data/sync/backgroundSyncRunner';
+import { openLocalDatabase } from '@/data/sync/openDatabase';
 import { seedCompanyProposalsThisMonth, seedProposals } from '@/data/mock/proposals';
 import { mockTechnician } from '@/data/mock/user';
 import { createSyncService, type SyncOutcome, type SyncService, type SyncSummary, type SyncUpdate } from '@/data/sync/syncService';
@@ -226,7 +230,15 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       }
       created = service;
       syncServiceRef.current = service;
+      definirServicoEmPrimeiroPlano(service);
       setSyncMode(service.mode);
+      if (service.mode === 'api') {
+        // SCRUM-18: guarda a sessão e agenda a tarefa que sincroniza com o app fechado.
+        void openLocalDatabase()
+          .then((banco) => salvarContextoSync(banco, { idEmpresa: technician.companyId, idUsuario: technician.id }))
+          .then(registrarTarefaSync)
+          .catch((erro) => console.warn('[sync] Tarefa em segundo plano não registrada.', erro));
+      }
       // O que já estava pendente no aparelho entra na fila (RN07 filtra).
       for (const proposal of proposalsRef.current) {
         if (proposal.syncStatus !== 'sincronizado' && isSyncable(proposal.status)) await service.enqueueProposal(proposal);
@@ -237,15 +249,30 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       created?.stop();
       syncServiceRef.current = null;
+      definirServicoEmPrimeiroPlano(null);
     };
   }, [technician?.id, technician?.companyId, handleSyncUpdate, refreshSummary]);
+
+  // Base de contingência gravada no SQLite (SCRUM-17): na abertura, usa a do
+  // banco se for mais nova que a embutida. No preview web não há banco.
+  useEffect(() => {
+    void openLocalDatabase()
+      .then(inicializarContingencia)
+      .then((base) => setContingency((current) => ({ ...current, version: base.version })))
+      .catch(() => {});
+  }, []);
 
   // Job da base de contingência (SCRUM-85).
   useEffect(() => {
     const updater = new ContingencyUpdater({
       source: config.hasApi ? httpContingencySource(config.apiUrl) : null,
       getCurrent: getActiveContingencyBase,
-      apply: setActiveContingencyBase,
+      apply: (base) => {
+        setActiveContingencyBase(base);
+        void openLocalDatabase()
+          .then((banco) => salvarBaseContingencia(banco, base))
+          .catch(() => {});
+      },
       isOnline: () => isOnlineRef.current,
       onResult: (result, checkedAt) => {
         setContingency({ version: getActiveContingencyBase().version, lastCheckAt: checkedAt, lastResult: result, checking: false });
@@ -357,7 +384,14 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       completeOnboarding: () => setHasSeenOnboarding(true),
       replayOnboarding: () => setHasSeenOnboarding(false),
       login,
-      logout: () => setTechnician(null),
+      logout: () => {
+        setTechnician(null);
+        // Sem sessão, a tarefa em segundo plano não tem em nome de quem enviar.
+        void openLocalDatabase()
+          .then((banco) => salvarContextoSync(banco, null))
+          .then(cancelarTarefaSync)
+          .catch(() => {});
+      },
       updateProfile,
       saveProposal,
       getProposal: (id) => proposals.find((p) => p.id === id),

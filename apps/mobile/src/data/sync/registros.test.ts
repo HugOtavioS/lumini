@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { seedProposals } from '@/data/mock/proposals';
 import type { Proposal } from '@/domain/entities';
 import { canTechnicianEdit, isSyncable } from '@/domain/services/proposalRules';
-import { propostaDoRegistro, propostaPodeSubir, registrosDaProposta } from './registros';
+import { motivosBloqueioSync, propostaDoRegistro, propostaPodeSubir, registrosDaProposta } from './registros';
 import { statusDoContrato, statusParaContrato } from './status';
 
 const ctx = { idEmpresa: 'emp-001', idUsuario: 'tec-001' };
@@ -59,6 +59,17 @@ describe('proposta do app → registros do contrato (Dicionário v1.4)', () => {
     expect(propostaPodeSubir(comStatus('gerada'), ctx)).toBe(true);
     expect(propostaPodeSubir(comStatus('em_elaboracao'), ctx)).toBe(false);
     expect(propostaPodeSubir(comStatus('reaberta'), ctx)).toBe(false);
+  });
+
+  it('SCRUM-405: dimensionamento, precificação e PDF precisam estar concluídos', () => {
+    expect(motivosBloqueioSync(base, ctx)).toEqual([]);
+    const semPdf = { ...base, generatedAt: undefined };
+    expect(motivosBloqueioSync(semPdf, ctx)).toEqual(['PDF da proposta não gerado.']);
+    const semPreco = { ...base, items: [] };
+    expect(motivosBloqueioSync(semPreco, ctx)).toContain('Precificação não concluída.');
+    const semDimensionamento = { ...base, systemKwp: 0 };
+    expect(propostaPodeSubir(semDimensionamento, ctx)).toBe(false);
+    expect(motivosBloqueioSync(comStatus('em_elaboracao'), ctx)[0]).toMatch(/RN07/);
   });
 
   it('a versão-base de cada registro vem de syncBase', () => {

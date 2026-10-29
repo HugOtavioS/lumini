@@ -47,3 +47,11 @@ export * from './hsp/importacaoAtlas';
 export * from './medicao/geometria3d';
 export * from './medicao/calibracao';
 export * from './medicao/relatorioCalibracao';
+
+// SCRUM-24 — payback, ROI e economia acumulada (Misael)
+export * from './energia/projecaoGeracao';
+export * from './financeiro/PrecoTotalProposta';
+export * from './financeiro/calcularAnaliseFinanceira';
+
+// SCRUM-88 — CO₂ evitado (Misael)
+export * from './ambiental/calcularCO2Evitado';

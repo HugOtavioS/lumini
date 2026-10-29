@@ -6,7 +6,10 @@
 //
 //   EXPO_PUBLIC_API_URL=https://api.lumini.app
 
-const apiUrl = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, '') ?? '';
+// EXPO_PUBLIC_LUMINI_API_URL é o nome usado na entrega do Misael (SCRUM-18);
+// os dois funcionam. Acesso literal, para o bundler substituir o valor.
+const apiUrl =
+  (process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_LUMINI_API_URL || '').trim().replace(/\/+$/, '');
 
 export const config = {
   /** Endereço da API, sem a barra final; vazio = modo de demonstração. */
