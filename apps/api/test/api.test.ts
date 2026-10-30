@@ -39,7 +39,9 @@ async function subir() {
 
 beforeAll(async () => {
   pasta = mkdtempSync(join(tmpdir(), 'lumini-api-'));
-  config = { ...lerConfig({}), caminhoBanco: join(pasta, 'lumini.db'), segredoJwt: 'segredo-de-teste' };
+  // Com TEST_DATABASE_URL, a mesma bateria roda contra um PostgreSQL (banco vazio).
+  const urlPg = process.env.TEST_DATABASE_URL?.trim() || null;
+  config = { ...lerConfig({}), caminhoBanco: join(pasta, 'lumini.db'), urlBanco: urlPg, sslBanco: false, segredoJwt: 'segredo-de-teste' };
   await subir();
 });
 
@@ -58,7 +60,7 @@ function propostaDoCarlos(id: string, em: string, status = 'Gerada'): EntradaFil
   ];
 }
 
-describe('API Lumini (SQLite local)', () => {
+describe(`API Lumini (${process.env.TEST_DATABASE_URL ? 'PostgreSQL' : 'SQLite local'})`, () => {
   it('responde a verificação de saúde e publica a base de contingência', async () => {
     expect((await chamar('/saude')).corpo).toMatchObject({ status: 'ok' });
     const versao = await chamar('/contingencia/versao');

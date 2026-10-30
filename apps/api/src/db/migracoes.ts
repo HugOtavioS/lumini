@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import type { Banco } from './banco';
 
 // Banco central do Lumini (SCRUM-29), modelado a partir do Dicionário de
@@ -195,17 +197,30 @@ export const MIGRACOES_API: readonly MigracaoApi[] = [
 
 /** Aplica as migrações pendentes, cada uma numa transação. Devolve as versões aplicadas. */
 export function migrar(banco: Banco, migracoes: readonly MigracaoApi[] = MIGRACOES_API): number[] {
-  banco.db.exec(`CREATE TABLE IF NOT EXISTS schema_migracoes (
+  if (banco.tipo === 'postgres') return migrarPostgres(banco);
+  banco.exec(`CREATE TABLE IF NOT EXISTS schema_migracoes (
     versao INTEGER PRIMARY KEY NOT NULL, nome TEXT NOT NULL, aplicada_em TEXT NOT NULL)`);
   const feitas = new Set(banco.todos<{ versao: number }>('SELECT versao FROM schema_migracoes').map((l) => Number(l.versao)));
   const aplicadas: number[] = [];
   for (const m of [...migracoes].sort((a, b) => a.versao - b.versao)) {
     if (feitas.has(m.versao)) continue;
     banco.transacao(() => {
-      banco.db.exec(m.sql);
+      banco.exec(m.sql);
       banco.executar('INSERT INTO schema_migracoes (versao, nome, aplicada_em) VALUES (?, ?, ?)', m.versao, m.nome, new Date().toISOString());
     });
     aplicadas.push(m.versao);
   }
   return aplicadas;
+}
+
+/**
+ * PostgreSQL (Amazon RDS): aplica o schema de `postgres/001_schema.sql`, o mesmo
+ * modelo das migrações 1 a 4 acima. O script é idempotente (IF NOT EXISTS), então
+ * rodar a cada subida da API não altera nada que já exista.
+ */
+function migrarPostgres(banco: Banco): number[] {
+  const existe = banco.um<{ t: string | null }>("SELECT to_regclass('schema_migracoes')::text AS t")?.t;
+  const antes = new Set(existe ? banco.todos<{ versao: number }>('SELECT versao FROM schema_migracoes').map((l) => Number(l.versao)) : []);
+  banco.exec(readFileSync(new URL('./postgres/001_schema.sql', import.meta.url), 'utf8'));
+  return MIGRACOES_API.map((m) => m.versao).filter((v) => !antes.has(v));
 }

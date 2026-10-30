@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch --disable-warning=ExperimentalWarning --env-file-if-exists=.env src/main.ts",
     "start": "tsx --disable-warning=ExperimentalWarning --env-file-if-exists=.env src/main.ts",
-        "test": "vitest run",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -16,8 +16,10 @@
     "@nestjs/common": "~11.2.8",
     "@nestjs/core": "~11.2.8",
     "@nestjs/platform-express": "~11.2.8",
+    "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "synckit": "^0.11.13"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",

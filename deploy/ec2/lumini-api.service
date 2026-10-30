@@ -1,0 +1,16 @@
+# /etc/systemd/system/lumini-api.service — mantém a API rodando e reinicia se cair.
+[Unit]
+Description=Lumini API (NestJS)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ec2-user
+WorkingDirectory=/home/ec2-user/lumini/apps/api
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+Environment=NODE_OPTIONS=--max-old-space-size=512
+
+[Install]
+WantedBy=multi-user.target

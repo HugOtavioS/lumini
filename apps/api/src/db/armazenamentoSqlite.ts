@@ -88,7 +88,7 @@ export class ArmazenamentoSqlite implements ArmazenamentoServidor {
   guardarStatusDaVersao(chave: string, updatedAt: string, status: StatusProposta): void {
     const [entidade, id] = separar(chave);
     this.banco.executar(
-      'INSERT INTO status_versao (entidade, id_registro, updated_at, status) VALUES (?, ?, ?, ?) ON CONFLICT DO UPDATE SET status = excluded.status',
+      'INSERT INTO status_versao (entidade, id_registro, updated_at, status) VALUES (?, ?, ?, ?) ON CONFLICT (entidade, id_registro, updated_at) DO UPDATE SET status = excluded.status',
       entidade, id, updatedAt, status,
     );
   }

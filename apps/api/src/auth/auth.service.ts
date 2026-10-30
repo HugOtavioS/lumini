@@ -70,13 +70,13 @@ export class AuthService {
     }
     const u = this.bd.banco.um<LinhaUsuario>('SELECT * FROM usuario WHERE id_usuario = ?', sessao.id_usuario);
     if (!u || !u.ativo) throw new UnauthorizedException('Usuário desativado.');
-    this.bd.banco.executar('UPDATE sessao_refresh SET revogada = 1 WHERE id_sessao = ?', sessao.id_sessao);
+    this.bd.banco.executar('UPDATE sessao_refresh SET revogada = TRUE WHERE id_sessao = ?', sessao.id_sessao);
     return this.emitir(u);
   }
 
   sair(refreshToken: unknown): void {
     if (typeof refreshToken === 'string') {
-      this.bd.banco.executar('UPDATE sessao_refresh SET revogada = 1 WHERE token_hash = ?', hashRefresh(refreshToken));
+      this.bd.banco.executar('UPDATE sessao_refresh SET revogada = TRUE WHERE token_hash = ?', hashRefresh(refreshToken));
     }
   }
 

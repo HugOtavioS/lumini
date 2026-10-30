@@ -5,10 +5,16 @@
 //   JWT_SECRET=troque-isto            (obrigatório fora do desenvolvimento)
 //   LUMINI_SEED=sim                    (cria a empresa de demonstração se o banco estiver vazio)
 //   CORS_ORIGENS=http://localhost:5173,http://localhost:8081
+//   DATABASE_URL=postgres://usuario:senha@endpoint.rds.amazonaws.com:5432/lumini
+//                                      (com ela, usa o PostgreSQL/RDS no lugar do SQLite)
+//   DB_SSL=sim                         ("nao" para um PostgreSQL local sem TLS)
 
 export interface ConfigApi {
   porta: number;
   caminhoBanco: string;
+  /** PostgreSQL (RDS). Vazio = SQLite em `caminhoBanco`. */
+  urlBanco: string | null;
+  sslBanco: boolean;
   segredoJwt: string;
   semear: boolean;
   origensCors: string[] | true;
@@ -30,6 +36,8 @@ export function lerConfig(env: NodeJS.ProcessEnv = process.env): ConfigApi {
   return {
     porta: Number(env.PORT) || 3000,
     caminhoBanco: env.LUMINI_DB?.trim() || './dados/lumini.db',
+    urlBanco: env.DATABASE_URL?.trim() || null,
+    sslBanco: (env.DB_SSL ?? 'sim').toLowerCase() !== 'nao',
     segredoJwt,
     semear: (env.LUMINI_SEED ?? 'sim').toLowerCase() !== 'nao',
     origensCors: origens && origens.length > 0 ? origens : true,

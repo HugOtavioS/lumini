@@ -287,7 +287,7 @@ export class AdminService {
 
   listarUsuarios(u: UsuarioAutenticado) {
     return this.banco.todos<Record<string, unknown>>(
-      `SELECT us.id_usuario AS id, us.nome, us.email, us.papel, us.telefone, us.ativo = 1 AS ativo, us.criado_em AS criadoEm,
+      `SELECT us.id_usuario AS id, us.nome, us.email, us.papel, us.telefone, us.ativo AS ativo, us.criado_em AS criadoEm,
               us.ultimo_acesso_em AS ultimoAcessoEm,
               (SELECT COUNT(*) FROM vw_proposta p WHERE p.id_usuario_responsavel = us.id_usuario) AS propostas,
               (SELECT MAX(data_hora) FROM log_sincronizacao l WHERE l.id_usuario = us.id_usuario) AS ultimaSincronizacao
@@ -315,9 +315,9 @@ export class AdminService {
 
   definirAtivo(u: UsuarioAutenticado, id: string, ativo: unknown) {
     if (id === u.idUsuario) throw new BadRequestException('Você não pode desativar o próprio acesso.');
-    const n = this.banco.executar('UPDATE usuario SET ativo = ? WHERE id_usuario = ? AND id_empresa = ?', ativo ? 1 : 0, id, u.idEmpresa);
+    const n = this.banco.executar('UPDATE usuario SET ativo = ? WHERE id_usuario = ? AND id_empresa = ?', Boolean(ativo), id, u.idEmpresa);
     if (n === 0) throw new NotFoundException('Usuário não encontrado.');
-    if (!ativo) this.banco.executar('UPDATE sessao_refresh SET revogada = 1 WHERE id_usuario = ?', id);
+    if (!ativo) this.banco.executar('UPDATE sessao_refresh SET revogada = TRUE WHERE id_usuario = ?', id);
     return this.listarUsuarios(u).find((x) => x.id === id);
   }
 
