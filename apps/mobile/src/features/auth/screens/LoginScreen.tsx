@@ -17,21 +17,21 @@ export default function LoginScreen() {
 
   async function handleSubmit() {
     // RF01, 2a: campos vazios não enviam o formulário.
-    // const nextErrors: typeof errors = {};
-    // if (!email.trim()) nextErrors.email = 'Informe seu e-mail.';
-    // else if (!isValidEmail(email)) nextErrors.email = 'Por favor insira um e-mail válido.';
-    // if (!password) nextErrors.password = 'Informe sua senha.';
-    // setErrors(nextErrors);
-    // if (Object.keys(nextErrors).length > 0) return;
+    const nextErrors: typeof errors = {};
+    if (!email.trim()) nextErrors.email = 'Informe seu e-mail.';
+    else if (!isValidEmail(email)) nextErrors.email = 'Por favor insira um e-mail válido.';
+    if (!password) nextErrors.password = 'Informe sua senha.';
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
 
-    // setLoading(true);
-    // try {
-    //   await login(email, password);
-    // } catch (error) {
-    //   setErrors({ form: error instanceof Error ? error.message : 'Não foi possível entrar.' });
-    // } finally {
-    //   setLoading(false);
-    // }
+    setLoading(true);
+    try {
+      await login(email, password);
+    } catch (error) {
+      setErrors({ form: error instanceof Error ? error.message : 'Não foi possível entrar.' });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

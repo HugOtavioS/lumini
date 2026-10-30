@@ -10,21 +10,24 @@ info:
     **A API não executa cálculos**: dimensionamento, precificação e viabilidade rodam no app e no navegador
     (pacote `@lumini/domain`).
 
-    **Situação (29/10/2026):** contrato definido e validado por testes. As regras do push e do pull estão
-    implementadas no servidor de referência `packages/sync/src/servidor/servidorReferencia.ts`, contra o qual
-    rodam os testes de integração offline → reconexão → sincronização (`packages/sync/src/integracao.test.ts`).
-    A implementação NestJS (SCRUM-30) segue esta especificação.
+    **Situação (30/10/2026):** implementada em `apps/api` (NestJS), com banco central SQLite local nesta fase
+    (PostgreSQL no Amazon RDS na publicação). As regras do push e do pull são as do servidor de referência
+    `packages/sync/src/servidor/servidorReferencia.ts`. Testes de ponta a ponta em `apps/api/test/api.test.ts`.
+    Usuários de demonstração (senha `lumini123`): gestora@solarvale.com.br (Gestor), carlos@lumini.com e
+    ana@solarvale.com.br (Técnicos).
 
     Tipos de origem: `packages/sync/src/contrato.ts`. Nomes dos campos de `dados`: Dicionário de Dados v1.4 (snake_case).
 servers:
-  - url: https://api.lumini.app/v1
-    description: Produção (hospedagem AWS em definição — NOVO-102)
-  - url: http://localhost:3000/v1
-    description: Desenvolvimento
+  - url: http://localhost:3000
+    description: Desenvolvimento (npm run api)
+  - url: https://api.lumini.app
+    description: Produção (AWS, a publicar — NOVO-102)
 tags:
   - name: Autenticação
   - name: Sincronização
   - name: Contingência
+  - name: Painel do gestor
+  - name: Saúde
 security:
   - bearerAuth: []
 paths:
@@ -170,6 +173,145 @@ paths:
                         hsp: { type: number, example: 4.9 }
                         latitude: { type: number, example: -23.55 }
         '404': { description: Versão inexistente. }
+  /saude:
+    get:
+      tags: [Saúde]
+      summary: Verificação de vida da API
+      security: []
+      responses:
+        '200': { description: 'API no ar: { status: ok, servico, hora }' }
+  /auth/logout:
+    post:
+      tags: [Autenticação]
+      summary: Encerra a sessão (revoga o refresh token)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [refreshToken], properties: { refreshToken: { type: string } } }
+      responses:
+        '204': { description: Sessão encerrada. }
+  /auth/me:
+    get:
+      tags: [Autenticação]
+      summary: Dados do usuário logado
+      responses:
+        '200': { description: 'Usuário: id, nome, email, papel, telefone, idEmpresa, nomeEmpresa.' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+  /sync/catalogo:
+    get:
+      tags: [Sincronização]
+      summary: Catálogo ativo da empresa para o app (RF15 / RF17)
+      description: Técnico e gestor. Somente leitura; cadastro e preço são do gestor (RF25, RN06).
+      responses:
+        '200': { description: '{ atualizadoEm, equipamentos: Equipamento[] } com precoVenda.' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+  /admin/resumo:
+    get:
+      tags: [Painel do gestor]
+      summary: Indicadores e funil de vendas (RF21)
+      responses:
+        '200': { description: Totais por status, valores, propostas por técnico e uso do plano. }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+        '403': { description: Somente Gestor Comercial. }
+  /admin/propostas:
+    get:
+      tags: [Painel do gestor]
+      summary: Lista as propostas da empresa (RF22)
+      responses:
+        '200': { description: Propostas com cliente, cidade, técnico, kWp, valor e status. }
+        '403': { description: Somente Gestor Comercial. }
+  /admin/propostas/{id}:
+    get:
+      tags: [Painel do gestor]
+      summary: Detalhe técnico e comercial com linha do tempo (RF23)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Proposta, itens, medição, sombreamento, histórico de status e ações permitidas (RN11). }
+        '404': { description: Proposta não encontrada nesta empresa. }
+  /admin/propostas/{id}/status:
+    post:
+      tags: [Painel do gestor]
+      summary: Muda o status da proposta (RF27 / RN11)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: ['Em negociação', 'Aprovada', 'Recusada', 'Reaberta'] }
+      responses:
+        '200': { description: Proposta atualizada; a alteração vai para o Log de Auditoria e chega ao app no pull. }
+        '409': { description: Transição não permitida pela RN11. }
+  /admin/equipamentos:
+    get:
+      tags: [Painel do gestor]
+      summary: Catálogo completo, inclusive ocultos (RF25)
+      responses:
+        '200': { description: Equipamentos com preço de custo, margem e preço de venda. }
+    post:
+      tags: [Painel do gestor]
+      summary: Cadastra equipamento (RF25)
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '201': { description: Equipamento criado (preço de venda calculado pela margem). }
+        '400': { description: Dados inválidos (validação do @lumini/domain). }
+  /admin/equipamentos/{id}:
+    put:
+      tags: [Painel do gestor]
+      summary: Edita ou oculta equipamento (RF25)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: Equipamento atualizado. }
+  /admin/usuarios:
+    get:
+      tags: [Painel do gestor]
+      summary: Equipe da empresa (RF29)
+      responses:
+        '200': { description: Usuários com papel, situação e último acesso. }
+    post:
+      tags: [Painel do gestor]
+      summary: Cria usuário técnico (RF29)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nome, email, senha]
+              properties:
+                nome: { type: string }
+                email: { type: string, format: email }
+                senha: { type: string, minLength: 8 }
+                telefone: { type: string }
+      responses:
+        '201': { description: Usuário criado. }
+        '409': { description: E-mail já cadastrado. }
+  /admin/usuarios/{id}:
+    patch:
+      tags: [Painel do gestor]
+      summary: Edita ou inativa usuário (RF29)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: Usuário atualizado. }
+  /admin/plano:
+    get:
+      tags: [Painel do gestor]
+      summary: Plano, uso do limite mensal e pedidos de upgrade (RF24 / RF28)
+      responses:
+        '200': { description: Assinatura, propostas geradas no mês e solicitações de upgrade. }
+  /admin/sincronizacoes:
+    get:
+      tags: [Painel do gestor]
+      summary: Log de sincronização dos aparelhos (RNF11)
+      responses:
+        '200': { description: Tentativas de push e pull com data, dispositivo, status e quantidade. }
 components:
   securitySchemes:
     bearerAuth:
@@ -183,18 +325,21 @@ components:
   schemas:
     Sessao:
       type: object
-      required: [accessToken, refreshToken, usuario]
+      required: [tokenAcesso, refreshToken, usuario]
       properties:
-        accessToken: { type: string }
+        tokenAcesso: { type: string, description: JWT HS256 com papel e empresa; validade de 1 h }
         refreshToken: { type: string }
-        expiraEm: { type: string, format: date-time }
+        expiraEmS: { type: integer, example: 3600 }
         usuario:
           type: object
           properties:
-            idUsuario: { type: string, format: uuid }
-            idEmpresa: { type: string, format: uuid }
+            id: { type: string }
             nome: { type: string }
+            email: { type: string }
             papel: { type: string, enum: [Tecnico, Gestor] }
+            telefone: { type: string, nullable: true }
+            idEmpresa: { type: string }
+            nomeEmpresa: { type: string }
     EntidadeSincronizavel:
       type: string
       enum: [Cliente, Instalacao, Medicao, SimulacaoSombreamento, Proposta, SolicitacaoUpgrade]

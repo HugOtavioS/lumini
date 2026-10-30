@@ -16,7 +16,13 @@ npx tsc --noEmit -p apps/mobile     # typecheck
 ### Modo de demonstração × API
 
 - **Sem** `EXPO_PUBLIC_API_URL`: modo de demonstração. Os dados são de exemplo e a sincronização é simulada (o Perfil avisa).
-- **Com** `EXPO_PUBLIC_API_URL` (arquivo `apps/mobile/.env.local`), no aparelho: a fila real do `@lumini/sync` assume — SQLite (`expo-sqlite`), retentativa com backoff, RN07 e resolução de conflito, enviando para `POST /sync/push` da API (SCRUM-30).
+- **Com** `EXPO_PUBLIC_API_URL` (arquivo `apps/mobile/.env.local` ou variável de ambiente):
+  - **login real** (RF01) em `POST /auth/login` — técnicos de demonstração `carlos@lumini.com` e `ana@solarvale.com.br`, senha `lumini123`;
+  - ao entrar, o app baixa o **catálogo da empresa** (`GET /sync/catalogo`, RF17) e o **histórico do técnico** gravado no banco central (`POST /sync/pull`, convertido por `src/data/sync/doServidor.ts`);
+  - no aparelho, a fila real do `@lumini/sync` envia o que for gerado — SQLite (`expo-sqlite`), retentativa com backoff, RN07 e conflito; no navegador, sem SQLite, o `DirectSyncService` envia direto para `POST /sync/push`;
+  - o que o gestor muda no painel (status) volta ao app no pull.
+- Depois de mudar a URL, rode `npx expo start --clear`: sem o `--clear` o Metro reaproveita o cache e o app continua no modo de demonstração.
+- No Windows, `scripts/rodar-tudo.cmd` (na raiz) sobe API, painel e app já com a URL certa (IP do PC, para o celular achar a API).
 
 ## Estrutura
 

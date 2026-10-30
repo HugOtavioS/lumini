@@ -26,4 +26,10 @@ export function findEquipment(id: string): Equipment | undefined {
   return catalog.find((equipment) => equipment.id === id);
 }
 
+/** Troca o catálogo de exemplo pelo baixado da API no login (RF15/RF17). */
+export function replaceCatalog(items: Equipment[]): void {
+  if (items.length === 0) return;
+  catalog.splice(0, catalog.length, ...items);
+}
+
 export const catalogUpdatedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();

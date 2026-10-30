@@ -1,7 +1,10 @@
 import { useNetInfo } from '@react-native-community/netinfo';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
+import { ApiError, baixarCatalogo, baixarRegistros, entrar, renovar, sair, type SessaoApi } from '@/data/api/luminiApi';
 import { config } from '@/data/config';
+import { replaceCatalog } from '@/data/mock/catalog';
+import { propostasDoServidor } from '@/data/sync/doServidor';
 import { getActiveContingencyBase, setActiveContingencyBase } from '@/data/contingency/contingencyBase';
 import {
   ContingencyUpdater,
@@ -20,10 +23,11 @@ import { FREE_PLAN_MONTHLY_LIMIT } from '@/domain/parameters';
 import { isSyncable } from '@/domain/services/proposalRules';
 import { generateId, isValidEmail } from '@/utils/format';
 
-// Estado global do app. As propostas ficam em memória nesta etapa; a
-// persistência em SQLite/SQLCipher (RF15 / D16) substitui este store depois.
-// A sincronização passa pelo SyncService (src/data/sync): fila real do
-// @lumini/sync quando há API configurada, ou o modo de demonstração.
+// Estado global do app. Com a API configurada (EXPO_PUBLIC_API_URL), o login é
+// real (RF01) e, ao entrar, o app baixa o catálogo da empresa (RF17) e o
+// histórico do técnico gravado no banco central (pull); a fila do @lumini/sync
+// envia o que for gerado no aparelho. Sem API, roda o modo de demonstração.
+// A gravação das propostas no SQLite do aparelho (RF15 / D16) vem depois.
 
 export type { SyncOutcome } from '@/data/sync/syncService';
 
@@ -120,16 +124,16 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
 
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
   const [technician, setTechnician] = useState<Technician | null>(null);
-  const [proposals, setProposals] = useState<Proposal[]>(seedProposals);
-  const [planUsed, setPlanUsed] = useState(
-    () => seedCompanyProposalsThisMonth + seedProposals.filter((p) => p.generatedAt && isThisMonth(p.generatedAt)).length,
+  const [proposals, setProposals] = useState<Proposal[]>(config.hasApi ? [] : seedProposals);
+  const [planUsed, setPlanUsed] = useState(() =>
+    config.hasApi ? 0 : seedCompanyProposalsThisMonth + seedProposals.filter((p) => p.generatedAt && isThisMonth(p.generatedAt)).length,
   );
   const [upgradeRequest, setUpgradeRequest] = useState<UpgradeRequest | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState(() => new Date(Date.now() - 15 * 60 * 1000).toISOString());
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSummary, setSyncSummary] = useState<SyncSummary>(EMPTY_SUMMARY);
   const [syncMode, setSyncMode] = useState<'simulado' | 'api'>('simulado');
-  const [notifications, setNotifications] = useState<AppNotification[]>(seedNotifications);
+  const [notifications, setNotifications] = useState<AppNotification[]>(config.hasApi ? [] : seedNotifications);
   const [preferences, setPreferences] = useState<AppPreferences>(DEFAULT_PREFERENCES);
   const [contingency, setContingency] = useState<ContingencyStatus>(() => ({
     version: getActiveContingencyBase().version,
@@ -145,6 +149,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const isOnlineRef = useRef(isOnline);
   isOnlineRef.current = isOnline;
   const syncServiceRef = useRef<SyncService | null>(null);
+  /** Sessão da API (JWT + refresh token), só em memória. */
+  const sessionRef = useRef<SessaoApi | null>(null);
   const updaterRef = useRef<ContingencyUpdater | null>(null);
 
   const addNotification = useCallback((kind: AppNotificationKind, title: string, message: string, proposalId?: string) => {
@@ -221,7 +227,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     void createSyncService({
       ctx: { idEmpresa: technician.companyId, idUsuario: technician.id },
       onUpdate: handleSyncUpdate,
-      getToken: () => null, // JWT entra com o login real (SCRUM-397 / RF01)
+      getToken: () => sessionRef.current?.tokenAcesso ?? null,
       isOnline: isOnlineRef.current,
     }).then(async (service) => {
       if (cancelled) {
@@ -295,8 +301,45 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     updaterRef.current?.onConnectivityChange(isOnline);
   }, [isOnline]);
 
+  // Renova o token de acesso antes de expirar (a API dá 1 h).
+  useEffect(() => {
+    if (!technician || !config.hasApi) return;
+    const timer = setInterval(() => {
+      const atual = sessionRef.current;
+      if (!atual) return;
+      void renovar(atual.refreshToken)
+        .then((nova) => { sessionRef.current = nova; })
+        .catch(() => {});
+    }, 45 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, [technician?.id]);
+
   const login = useCallback(async (email: string, password: string) => {
-    // RF01: validação pela API (online) ou pela sessão em cache (offline).
+    if (config.hasApi) {
+      // RF01: login real na API.
+      const sessao = await entrar(email, password);
+      if (sessao.usuario.papel !== 'Tecnico') {
+        await sair(sessao.refreshToken);
+        throw new ApiError('Esta conta é de gestor. Use o painel web.', 403);
+      }
+      sessionRef.current = sessao;
+      // Dados reais da empresa: catálogo (RF17) e histórico do técnico (banco central).
+      const [catalogo, registros] = await Promise.all([
+        baixarCatalogo(sessao.tokenAcesso).catch(() => []),
+        baixarRegistros(sessao.tokenAcesso, `login-${sessao.usuario.id}`).catch(() => null),
+      ]);
+      replaceCatalog(catalogo);
+      if (registros) {
+        const doServidor = propostasDoServidor(registros);
+        setProposals(doServidor);
+        setPlanUsed(doServidor.filter((p) => p.generatedAt && isThisMonth(p.generatedAt)).length);
+        setLastSyncAt(new Date().toISOString());
+      }
+      const u = sessao.usuario;
+      setTechnician({ id: u.id, name: u.nome, email: u.email, role: 'tecnico', companyId: u.idEmpresa, companyName: u.nomeEmpresa, phone: u.telefone ?? '', photoUri: null });
+      return;
+    }
+    // Modo demonstração (sem API configurada).
     await new Promise((resolve) => setTimeout(resolve, 600));
     if (!isValidEmail(email) || password.length < 4) {
       throw new Error('E-mail ou senha incorretos.');
@@ -385,6 +428,10 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       replayOnboarding: () => setHasSeenOnboarding(false),
       login,
       logout: () => {
+        const sessao = sessionRef.current;
+        sessionRef.current = null;
+        if (sessao) void sair(sessao.refreshToken);
+        if (config.hasApi) setProposals([]);
         setTechnician(null);
         // Sem sessão, a tarefa em segundo plano não tem em nome de quem enviar.
         void openLocalDatabase()

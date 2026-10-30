@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Inject, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Post, UseGuards } from '@nestjs/common';
 import type { RequisicaoPull, RequisicaoPush, RespostaPull } from '@lumini/sync';
 
 import { AuthGuard, Usuario } from '../auth/auth.guard';
@@ -29,6 +29,22 @@ export class SyncController {
     // O técnico recebe só os registros da carteira dele (clientes e propostas sob sua responsabilidade).
     const meus = this.registrosDoTecnico(usuario);
     return { ...resposta, registros: resposta.registros.filter((r) => meus.has(`${r.entidade}:${r.versao.id}`)) };
+  }
+
+  /**
+   * GET /sync/catalogo — catálogo ativo da empresa, para o app (RF15/RF17).
+   * O técnico só lê; cadastro e preço são do gestor (RF25, RN06).
+   */
+  @Get('catalogo')
+  catalogo(@Usuario() usuario: UsuarioAutenticado) {
+    const linhas = this.bd.banco.todos<{ dados: string; preco_venda: number; updated_at: string }>(
+      "SELECT dados, preco_venda, updated_at FROM equipamento WHERE id_empresa = ? AND status = 'Ativo' ORDER BY categoria, fabricante, modelo",
+      usuario.idEmpresa,
+    );
+    return {
+      atualizadoEm: linhas.reduce((max, l) => (l.updated_at > max ? l.updated_at : max), ''),
+      equipamentos: linhas.map((l) => ({ ...(JSON.parse(l.dados) as Record<string, unknown>), precoVenda: l.preco_venda })),
+    };
   }
 
   private registrosDoTecnico(usuario: UsuarioAutenticado): Set<string> {

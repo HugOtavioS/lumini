@@ -200,4 +200,14 @@ describe('API Lumini (SQLite local)', () => {
     expect(r.corpo.proposta.status_proposta).toBe('Aprovada');
     expect((await chamar('/admin/resumo', { token: gestora.tokenAcesso })).corpo.propostas.total).toBe(9);
   });
+
+  it('GET /sync/catalogo devolve o catálogo ativo ao técnico, sem login dá 401', async () => {
+    const semLogin = await chamar('/sync/catalogo');
+    expect(semLogin.status).toBe(401);
+    const { tokenAcesso } = await entrar('carlos@lumini.com');
+    const r = await chamar<{ equipamentos: { idEquipamento: string; categoria: string; precoVenda: number }[] }>('/sync/catalogo', { token: tokenAcesso });
+    expect(r.status).toBe(200);
+    expect(r.corpo.equipamentos.length).toBeGreaterThan(0);
+    expect(r.corpo.equipamentos.some((e) => e.categoria === 'Módulo')).toBe(true);
+  });
 });

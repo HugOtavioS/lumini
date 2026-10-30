@@ -4,6 +4,9 @@ import {
   idOperacaoDe,
   type BancoSql,
   type EventoFila,
+  type EntradaFila,
+  type RequisicaoPush,
+  type RespostaPush,
   type ResultadoRodada,
 } from '@lumini/sync';
 
@@ -16,7 +19,8 @@ import { propostaDoRegistro, propostaPodeSubir, registroDaSolicitacao, registros
 //
 // - Modo "api": com EXPO_PUBLIC_API_URL definida, no aparelho, usa a
 //   FilaSincronizacao real (SQLite, retentativa com backoff, RN07, conflito).
-// - Modo "simulado": sem API (ou no preview web), mantém o comportamento de
+// - No navegador (sem SQLite), com API: DirectSyncService envia direto.
+// - Modo "simulado": sem API, mantém o comportamento de
 //   demonstração, com o mesmo contrato, para as telas não mudarem.
 //
 // As telas não conhecem a fila: falam só com esta interface, pelo AppStore.
@@ -251,6 +255,111 @@ export class QueueSyncService implements SyncService {
   }
 }
 
+/**
+ * Envio direto, sem fila em SQLite: usado no navegador (preview web), onde o
+ * banco local não existe. Mantém as pendências em memória e envia na hora pelo
+ * mesmo contrato (POST /sync/push). No aparelho, quem envia é a QueueSyncService.
+ */
+export class DirectSyncService implements SyncService {
+  readonly mode = 'api' as const;
+  private readonly pendentes = new Map<string, { entrada: EntradaFila; proposalId: string | null }>();
+  private online: boolean;
+  private lastAttemptAt: string | null = null;
+  private lastError: string | null = null;
+  private comErro = new Set<string>();
+  private readonly idDispositivo = `web-${Math.random().toString(36).slice(2, 10)}`;
+
+  constructor(private readonly options: SyncServiceOptions) {
+    this.online = options.isOnline;
+  }
+
+  async enqueueProposal(proposal: Proposal): Promise<boolean> {
+    if (!propostaPodeSubir(proposal, this.options.ctx)) return false;
+    for (const entrada of registrosDaProposta(proposal, this.options.ctx)) {
+      this.pendentes.set(idOperacaoDe(entrada.entidade, entrada.versao.id), { entrada, proposalId: proposal.id });
+    }
+    void this.enviar();
+    return true;
+  }
+
+  async enqueueUpgrade(request: UpgradeRequest): Promise<void> {
+    const entrada = registroDaSolicitacao(request, this.options.ctx);
+    this.pendentes.set(idOperacaoDe(entrada.entidade, entrada.versao.id), { entrada, proposalId: null });
+    void this.enviar();
+  }
+
+  async syncNow(): Promise<SyncOutcome> {
+    if (this.pendentes.size === 0) return 'nada_pendente';
+    if (!this.online) return 'offline';
+    return this.enviar();
+  }
+
+  setOnline(online: boolean): void {
+    this.online = online;
+    if (online) void this.enviar();
+  }
+
+  async summary(): Promise<SyncSummary> {
+    return {
+      pending: this.pendentes.size - this.comErro.size,
+      withError: this.comErro.size,
+      persistentFailure: this.comErro.size > 0,
+      lastAttemptAt: this.lastAttemptAt,
+      lastError: this.lastError,
+    };
+  }
+
+  stop(): void {}
+
+  private async enviar(): Promise<SyncOutcome> {
+    if (!this.online || this.pendentes.size === 0) return this.pendentes.size === 0 ? 'nada_pendente' : 'offline';
+    const token = this.options.getToken();
+    const lista = [...this.pendentes.entries()];
+    const corpo: RequisicaoPush = {
+      idDispositivo: this.idDispositivo,
+      operacoes: lista.map(([idOperacao, { entrada }]) => ({ idOperacao, entidade: entrada.entidade, baseUpdatedAt: entrada.baseUpdatedAt ?? null, versao: entrada.versao })),
+    };
+    this.lastAttemptAt = new Date().toISOString();
+    let resposta: RespostaPush;
+    try {
+      const r = await fetch(`${config.apiUrl}/sync/push`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(corpo),
+      });
+      if (!r.ok) throw new Error(`Erro ${r.status} no servidor.`);
+      resposta = (await r.json()) as RespostaPush;
+    } catch (erro) {
+      this.lastError = erro instanceof Error ? erro.message : 'Falha ao enviar.';
+      for (const [, { proposalId }] of lista) this.options.onUpdate({ kind: 'error', proposalId, message: this.lastError, retryable: true });
+      return 'com_erro';
+    }
+    let rejeitadas = 0;
+    for (const res of resposta.resultados) {
+      const item = this.pendentes.get(res.idOperacao);
+      if (!item) continue;
+      const { entrada, proposalId } = item;
+      if (entrada.entidade === 'SolicitacaoUpgrade') {
+        if (res.situacao !== 'rejeitada') { this.pendentes.delete(res.idOperacao); this.options.onUpdate({ kind: 'upgradeSynced' }); }
+        continue;
+      }
+      if (res.situacao === 'aplicada') {
+        this.pendentes.delete(res.idOperacao); this.comErro.delete(res.idOperacao);
+        const ainda = proposalId ? [...this.pendentes.values()].some((p) => p.proposalId === proposalId) : false;
+        this.options.onUpdate({ kind: 'synced', proposalId, idOperacao: res.idOperacao, serverUpdatedAt: res.versaoAceita.updatedAt, isProposal: entrada.entidade === 'Proposta', conflict: res.conflito, messages: res.avisos, stillPending: ainda });
+      } else if (res.situacao === 'descartada') {
+        this.pendentes.delete(res.idOperacao);
+        this.options.onUpdate({ kind: 'replaced', proposalId, idOperacao: res.idOperacao, serverUpdatedAt: res.versaoServidor.updatedAt, message: res.mensagem });
+      } else {
+        rejeitadas++;
+        if (!res.retentavel) { this.comErro.add(res.idOperacao); this.lastError = res.mensagem; }
+        this.options.onUpdate({ kind: 'error', proposalId, message: res.mensagem, retryable: res.retentavel });
+      }
+    }
+    return rejeitadas > 0 ? 'com_erro' : 'sincronizado';
+  }
+}
+
 function resultadoDaRodada(r: ResultadoRodada): SyncOutcome {
   if (r.motivo === 'offline') return 'offline';
   if (r.motivo === 'vazia') return 'nada_pendente';
@@ -277,8 +386,9 @@ export async function createSyncService(options: SyncServiceOptions): Promise<Sy
   if (config.hasApi) {
     try {
       return await QueueSyncService.create(options);
-    } catch (erro) {
-      console.warn('[sync] Fila real indisponível; usando o modo de demonstração.', erro);
+    } catch {
+      // Sem SQLite (navegador): envia direto para a API, sem fila persistente.
+      return new DirectSyncService(options);
     }
   }
   return new SimulatedSyncService(options);
