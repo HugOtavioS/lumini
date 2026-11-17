@@ -38,6 +38,7 @@ export function Plano() {
             <div className="barra"><i style={{ width: `${uso * 100}%`, background: uso >= 0.9 ? 'var(--vermelho)' : undefined }} /></div>
           </div>
         </section>
+        {dados.acimaDoLimiteMes > 0 && <Aviso tipo="erro">{dados.acimaDoLimiteMes} {dados.acimaDoLimiteMes === 1 ? 'proposta foi gerada' : 'propostas foram geradas'} offline acima do limite neste mês. Elas aparecem sinalizadas na lista de propostas (RN05).</Aviso>}
         {uso >= 0.8 && <Aviso>Vocês já usaram {Math.round(uso * 100)}% do limite do mês. Quando o limite acabar, o app bloqueia novas propostas até o próximo mês (RN05).</Aviso>}
 
         <div className="grade" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>

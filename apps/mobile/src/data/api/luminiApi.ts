@@ -87,6 +87,9 @@ interface EquipamentoApi {
   comprimentoMm?: number | null; larguraMm?: number | null; precoVenda: number;
 }
 
+/** Parâmetros comerciais da empresa (SCRUM-433). */
+export const baixarParametros = (token: string) => chamar<Record<string, number>>('/sync/parametros', { token });
+
 export async function baixarCatalogo(token: string): Promise<Equipment[]> {
   const r = await chamar<{ equipamentos: EquipamentoApi[] }>('/sync/catalogo', { token });
   return r.equipamentos.map((e) => ({

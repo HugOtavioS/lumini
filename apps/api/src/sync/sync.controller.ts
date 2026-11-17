@@ -3,6 +3,10 @@ import type { RequisicaoPull, RequisicaoPush, RespostaPull } from '@lumini/sync'
 
 import { AuthGuard, Usuario } from '../auth/auth.guard';
 import type { UsuarioAutenticado } from '../auth/auth.service';
+import { randomUUID } from 'node:crypto';
+
+import { AVISO_LIMITE, limiteDaEmpresa, propostasAcimaDoLimite } from '../admin/limitePlano';
+import { lerParametros } from '../admin/parametros';
 import { BancoService } from '../banco.service';
 
 // SCRUM-30 — POST /sync/push e POST /sync/pull (contrato do @lumini/sync).
@@ -18,7 +22,43 @@ export class SyncController {
   @Post('push')
   @HttpCode(200)
   push(@Usuario() usuario: UsuarioAutenticado, @Body() corpo: RequisicaoPush) {
-    return this.bd.servidor.push(usuario, corpo);
+    const resposta = this.bd.servidor.push(usuario, corpo);
+    return this.revalidarLimite(usuario, resposta);
+  }
+
+  /**
+   * SCRUM-435/436 (RN05): a proposta gerada offline acima do limite mensal é
+   * aceita, mas volta com um aviso para o técnico e fica sinalizada para o
+   * gestor (Log de Auditoria + selo no painel).
+   */
+  private revalidarLimite(usuario: UsuarioAutenticado, resposta: ReturnType<BancoService['servidor']['push']>) {
+    const limite = limiteDaEmpresa(this.bd.banco, usuario.idEmpresa);
+    if (limite === null) return resposta;
+    const acima = propostasAcimaDoLimite(this.bd.banco, usuario.idEmpresa);
+    if (acima.size === 0) return resposta;
+    const resultados = resposta.resultados.map((r) => {
+      if (r.situacao !== 'aplicada' || !r.idOperacao.startsWith('Proposta:')) return r;
+      const id = r.idOperacao.slice('Proposta:'.length);
+      if (!acima.has(id)) return r;
+      const jaSinalizada = this.bd.banco.um(
+        "SELECT 1 FROM log_auditoria WHERE entidade = 'Proposta' AND id_registro = ? AND campo = 'excedeu_limite_plano'", id,
+      );
+      if (!jaSinalizada) {
+        this.bd.banco.executar(
+          `INSERT INTO log_auditoria (id_log, id_empresa, entidade, id_registro, campo, valor_anterior, valor_novo, id_usuario, origem, data_hora, motivo)
+           VALUES (?, ?, 'Proposta', ?, 'excedeu_limite_plano', 'false', 'true', ?, 'API', ?, ?)`,
+          randomUUID(), usuario.idEmpresa, id, usuario.idUsuario, new Date().toISOString(), `Gerada além do limite de ${limite} propostas no mês (RN05)`,
+        );
+      }
+      return { ...r, avisos: [...r.avisos, AVISO_LIMITE(limite)] };
+    });
+    return { ...resposta, resultados };
+  }
+
+  /** GET /sync/parametros — parâmetros comerciais da empresa para o app (SCRUM-433, RN03/RN06). */
+  @Get('parametros')
+  parametros(@Usuario() usuario: UsuarioAutenticado) {
+    return lerParametros(this.bd.banco, usuario.idEmpresa);
   }
 
   @Post('pull')

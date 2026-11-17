@@ -142,6 +142,23 @@ CREATE TABLE IF NOT EXISTS contingencia_versao (
   dados        JSONB NOT NULL
 );
 
+-- 5. Parâmetros comerciais da empresa (SCRUM-433 / RF29) -------------------
+CREATE TABLE IF NOT EXISTS parametro_comercial (
+  id_empresa                  TEXT PRIMARY KEY REFERENCES empresa (id_empresa),
+  limite_ajuste_preco_perc    NUMERIC(6,2) NOT NULL DEFAULT 15 CHECK (limite_ajuste_preco_perc BETWEEN 0 AND 100),
+  margem_padrao_perc          NUMERIC(6,2) NOT NULL DEFAULT 25 CHECK (margem_padrao_perc >= 0),
+  materiais_eletricos_por_kwp NUMERIC(12,2) NOT NULL DEFAULT 250 CHECK (materiais_eletricos_por_kwp >= 0),
+  mao_de_obra_por_kwp         NUMERIC(12,2) NOT NULL DEFAULT 800 CHECK (mao_de_obra_por_kwp >= 0),
+  art_homologacao_padrao      NUMERIC(12,2) NOT NULL DEFAULT 1200 CHECK (art_homologacao_padrao >= 0),
+  frete_padrao                NUMERIC(12,2) NOT NULL DEFAULT 800 CHECK (frete_padrao >= 0),
+  validade_padrao_dias        INTEGER NOT NULL DEFAULT 15 CHECK (validade_padrao_dias > 0),
+  updated_at                  TIMESTAMPTZ NOT NULL,
+  updated_by                  TEXT NOT NULL
+);
+INSERT INTO parametro_comercial (id_empresa, updated_at, updated_by)
+  SELECT id_empresa, now(), 'sistema' FROM empresa
+ON CONFLICT (id_empresa) DO NOTHING;
+
 -- 4. Views relacionais (painel e relatórios) -------------------------------
 CREATE OR REPLACE VIEW vw_cliente AS
   SELECT r.id_registro AS id_cliente, r.id_empresa,
@@ -190,7 +207,7 @@ CREATE OR REPLACE VIEW vw_item_proposta AS
 
 INSERT INTO schema_migracoes (versao, nome) VALUES
   (1, 'empresa_usuario_assinatura'), (2, 'catalogo_equipamentos'),
-  (3, 'sincronizacao_e_logs'), (4, 'views_relacionais')
+  (3, 'sincronizacao_e_logs'), (4, 'views_relacionais'), (5, 'parametros_comerciais')
 ON CONFLICT (versao) DO NOTHING;
 
 COMMIT;

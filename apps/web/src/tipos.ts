@@ -17,6 +17,8 @@ export interface PropostaLista {
   tecnico: string | null;
   cliente: string | null;
   cidade: string | null;
+  /** SCRUM-436: gerada além do limite mensal do plano. */
+  excedeuLimite: boolean;
 }
 
 export interface Plano {
@@ -24,6 +26,7 @@ export interface Plano {
   status: string;
   limiteMes: number | null;
   usadasMes: number;
+  acimaDoLimiteMes: number;
   inicioEm: string | null;
   solicitacoesUpgrade: Array<Record<string, unknown> & { criadaEm: string }>;
 }
@@ -70,6 +73,35 @@ export interface DetalheProposta {
   historico: Array<{ dataHora: string; campo: string; valorAnterior: string | null; valorNovo: string | null; origem: string; motivo: string | null; usuario: string | null }>;
   linhaDoTempo: Array<{ status: StatusProposta; em: string }>;
   acoesPermitidas: AcaoGestor[];
+  excedeuLimite: boolean;
+  limitePlano: number | null;
+  podeEditar: boolean;
+  limiteAjustePrecoPerc: number;
+}
+
+/** SCRUM-433 — parâmetros comerciais da empresa (RF29). */
+export interface Parametros {
+  limiteAjustePrecoPerc: number;
+  margemPadraoPerc: number;
+  materiaisEletricosPorKwp: number;
+  maoDeObraPorKwp: number;
+  artHomologacaoPadrao: number;
+  fretePadrao: number;
+  validadePadraoDias: number;
+  atualizadoEm: string | null;
+  atualizadoPor: string | null;
+}
+
+/** Item do catálogo como a API devolve em /admin/equipamentos. */
+export interface EquipamentoCatalogo {
+  idEquipamento: string;
+  categoria: string;
+  fabricante: string;
+  modelo: string;
+  fornecedor: string;
+  potenciaW: number | null;
+  precoVenda: number;
+  status: 'Ativo' | 'Oculto';
 }
 
 export interface UsuarioEquipe {

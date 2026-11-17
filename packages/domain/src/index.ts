@@ -52,6 +52,8 @@ export * from './medicao/relatorioCalibracao';
 export * from './energia/projecaoGeracao';
 export * from './financeiro/PrecoTotalProposta';
 export * from './financeiro/calcularAnaliseFinanceira';
+// SCRUM-419 / RN03 — precificação e viabilidade recalculadas no editor web
+export * from './financeiro/precificacao';
 
 // SCRUM-88 — CO₂ evitado (Misael)
 export * from './ambiental/calcularCO2Evitado';

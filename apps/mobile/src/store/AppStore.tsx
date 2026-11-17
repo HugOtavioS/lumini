@@ -1,7 +1,7 @@
 import { useNetInfo } from '@react-native-community/netinfo';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { ApiError, baixarCatalogo, baixarRegistros, entrar, renovar, sair, type SessaoApi } from '@/data/api/luminiApi';
+import { ApiError, baixarCatalogo, baixarParametros, baixarRegistros, entrar, renovar, sair, type SessaoApi } from '@/data/api/luminiApi';
 import { config } from '@/data/config';
 import { replaceCatalog } from '@/data/mock/catalog';
 import { propostasDoServidor } from '@/data/sync/doServidor';
@@ -19,7 +19,7 @@ import { seedCompanyProposalsThisMonth, seedProposals } from '@/data/mock/propos
 import { mockTechnician } from '@/data/mock/user';
 import { createSyncService, type SyncOutcome, type SyncService, type SyncSummary, type SyncUpdate } from '@/data/sync/syncService';
 import type { AppNotification, AppNotificationKind, AppPreferences, Proposal, Technician, UpgradeRequest } from '@/domain/entities';
-import { FREE_PLAN_MONTHLY_LIMIT } from '@/domain/parameters';
+import { applyCompanyParameters, FREE_PLAN_MONTHLY_LIMIT } from '@/domain/parameters';
 import { isSyncable } from '@/domain/services/proposalRules';
 import { generateId, isValidEmail } from '@/utils/format';
 
@@ -324,11 +324,14 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       }
       sessionRef.current = sessao;
       // Dados reais da empresa: catálogo (RF17) e histórico do técnico (banco central).
-      const [catalogo, registros] = await Promise.all([
+      const [catalogo, registros, parametros] = await Promise.all([
         baixarCatalogo(sessao.tokenAcesso).catch(() => []),
         baixarRegistros(sessao.tokenAcesso, `login-${sessao.usuario.id}`).catch(() => null),
+        baixarParametros(sessao.tokenAcesso).catch(() => null),
       ]);
       replaceCatalog(catalogo);
+      // SCRUM-433: margem, custos padrão e limite de ajuste definidos pelo gestor.
+      if (parametros) applyCompanyParameters(parametros);
       if (registros) {
         const doServidor = propostasDoServidor(registros);
         setProposals(doServidor);

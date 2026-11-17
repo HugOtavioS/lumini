@@ -1,7 +1,8 @@
-import { criarCatalogoInicial, calcularAnaliseFinanceira, type Equipamento } from '@lumini/domain';
+import { criarCatalogoInicial, calcularAnaliseFinanceira, precificarProposta, type Equipamento } from '@lumini/domain';
 import { idOperacaoDe, type OperacaoSync, type ServidorSincronizacao, type SessaoServidor, type StatusProposta } from '@lumini/sync';
 
 import { gerarHashSenha } from '../auth/senha';
+import { PARAMETROS_PADRAO } from '../admin/parametros';
 import type { Banco } from './banco';
 
 // Empresa de demonstração para rodar a API e o painel local. Os ids do técnico
@@ -75,15 +76,30 @@ function operacoesDaProposta(p: PropostaDemo, emp: string, em: string, modulo: E
   const idCli = `cli-${id}`;
   const idIns = `ins-${id}`;
   const geracaoMes = Math.round(p.kwp * 4.9 * 30 * 0.8 * 10) / 10;
+  const modulos = Math.ceil((p.kwp * 1000) / (modulo.potenciaW ?? 550));
+  const precoModulo = modulo.precoVenda;
+  const precoInversor = inversor.precoVenda;
+  // Valores pela RN03 (mesma função do app e do editor web), com os parâmetros
+  // padrão da empresa (SCRUM-433): assim, editar uma proposta de exemplo no
+  // painel só muda o que o gestor mudou.
+  const par = PARAMETROS_PADRAO;
+  const servicos = {
+    materiaisEletricos: Math.round(par.materiaisEletricosPorKwp * p.kwp),
+    maoDeObra: Math.round(par.maoDeObraPorKwp * p.kwp),
+    artHomologacao: par.artHomologacaoPadrao,
+    logisticaFrete: par.fretePadrao,
+  };
+  const preco = precificarProposta({
+    itens: [{ quantidade: modulos, precoCatalogo: precoModulo, ajustePercentual: 0 }, { quantidade: 1, precoCatalogo: precoInversor, ajustePercentual: 0 }],
+    servicos,
+    margemPercentual: par.margemPadraoPerc,
+  });
   const analise = calcularAnaliseFinanceira({
-    precoTotal: { valorTotal: p.total },
+    precoTotal: { valorTotal: preco.valorTotal },
     geracaoAnualKwh: geracaoMes * 12,
     tarifaKwh: p.tarifa,
     premissas: { reajusteTarifarioAnual: 0.04 },
   });
-  const modulos = Math.ceil((p.kwp * 1000) / (modulo.potenciaW ?? 550));
-  const precoModulo = modulo.precoVenda;
-  const precoInversor = inversor.precoVenda;
   const versao = (idRegistro: string, dados: Record<string, unknown>) => ({ id: idRegistro, idEmpresa: emp, updatedAt: em, updatedBy: p.tecnico, dados });
   const op = (entidade: OperacaoSync['entidade'], v: ReturnType<typeof versao>): OperacaoSync => ({
     idOperacao: idOperacaoDe(entidade, v.id),
@@ -106,15 +122,15 @@ function operacoesDaProposta(p: PropostaDemo, emp: string, em: string, modulo: E
     op('Proposta', versao(id, {
       id_proposta: id, id_instalacao: idIns, id_usuario_responsavel: p.tecnico, numero_proposta: `LUM-2026-${String(p.n).padStart(4, '0')}`,
       numero_versao: 1, status_proposta: 'Gerada', potencia_kwp: p.kwp, geracao_estimada_kwh_mes: geracaoMes, perdas_totais_perc: 20,
-      valor_equipamentos: Math.round(modulos * precoModulo + precoInversor), valor_materiais_eletricos: Math.round(p.total * 0.06),
-      valor_mao_de_obra: Math.round(p.total * 0.12), valor_art_homologacao: 1200, valor_logistica_frete: 600, margem_percentual: 20,
-      valor_margem: Math.round(p.total / 6), valor_total: p.total,
+      valor_equipamentos: preco.valorEquipamentos, valor_materiais_eletricos: servicos.materiaisEletricos,
+      valor_mao_de_obra: servicos.maoDeObra, valor_art_homologacao: servicos.artHomologacao, valor_logistica_frete: servicos.logisticaFrete,
+      margem_percentual: par.margemPadraoPerc, valor_margem: preco.valorMargem, desconto_comercial_perc: 0, valor_total: preco.valorTotal,
       economia_mensal_estimada: Math.round(geracaoMes * p.tarifa * 100) / 100,
       payback_meses: analise.payback?.totalMeses ?? null, roi_percentual: Math.round(analise.roiPercentual * 10) / 10,
       validade_dias: 15, condicao_pagamento: p.condicao, parcelas: p.condicao === 'À vista' ? 1 : 12,
       entrada_perc: p.condicao === 'Entrada + parcelas' ? 30 : null, data_geracao: em,
       itens: [
-        { id_item: `${id}-mod`, id_proposta: id, id_equipamento: modulo.idEquipamento, quantidade: modulos, preco_catalogo: precoModulo, ajuste_percentual: 0, preco_unitario: precoModulo, subtotal: modulos * precoModulo, fornecedor: modulo.fornecedor, observacoes: null },
+        { id_item: `${id}-mod`, id_proposta: id, id_equipamento: modulo.idEquipamento, quantidade: modulos, preco_catalogo: precoModulo, ajuste_percentual: 0, preco_unitario: precoModulo, subtotal: preco.itens[0]!.subtotal, fornecedor: modulo.fornecedor, observacoes: null },
         { id_item: `${id}-inv`, id_proposta: id, id_equipamento: inversor.idEquipamento, quantidade: 1, preco_catalogo: precoInversor, ajuste_percentual: 0, preco_unitario: precoInversor, subtotal: precoInversor, fornecedor: inversor.fornecedor, observacoes: null },
       ],
     })),
@@ -132,6 +148,7 @@ export function semearSeVazio(banco: Banco, servidor: ServidorSincronizacao): bo
       EMPRESA_DEMO, 'Solar Vale Energia Ltda.', 'Solar Vale Energia', '12.345.678/0001-90', isoDiasAtras(60));
     banco.executar(`INSERT INTO assinatura (id_assinatura, id_empresa, tipo_plano, limite_propostas_mes, status, inicio_em) VALUES (?, ?, 'Freemium', 25, 'Ativa', ?)`,
       'ass-001', EMPRESA_DEMO, isoDiasAtras(60));
+    banco.executar('INSERT INTO parametro_comercial (id_empresa, updated_at, updated_by) VALUES (?, ?, ?)', EMPRESA_DEMO, isoDiasAtras(60), 'sistema');
     const hash = gerarHashSenha(SENHA_DEMO);
     for (const u of USUARIOS_DEMO) {
       banco.executar('INSERT INTO usuario (id_usuario, id_empresa, nome, email, senha_hash, papel, telefone, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',

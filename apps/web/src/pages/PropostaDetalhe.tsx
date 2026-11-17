@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { Check, Handshake, Lock, MessageCircle, RotateCcw, X, FilePlus2 } from 'lucide-react';
+import { AlertTriangle, Check, FileDown, FilePlus2, Handshake, Lock, MessageCircle, Pencil, RotateCcw, X } from 'lucide-react';
 import { motivoBloqueio, type AcaoGestor } from '@lumini/sync';
 
 import { api, ErroApi } from '../api';
 import { Aviso, Carregando, Modal, SeloStatus, Topo, toast, useDados } from '../components/comum';
-import { brl, data, dataHora, num, telefone } from '../formato';
+import { brl, data, dataHora, num, telefone, periodo } from '../formato';
 import type { DetalheProposta, StatusProposta } from '../tipos';
 
 // RF27 / RN11: os botões vêm de `acoesDoGestor` (@lumini/sync), a mesma regra
@@ -69,6 +69,9 @@ export function PropostaDetalhe() {
     <>
       <Topo titulo={String(c.nome_razao_social ?? p.numero_proposta)} migalha={<><Link to="/propostas">Propostas</Link> › {String(p.numero_proposta)} · versão {String(p.numero_versao ?? 1)}</>}>
         <SeloStatus status={status} />
+        {dados.excedeuLimite && <span className="selo limite"><AlertTriangle size={13} /> Acima do limite do plano</span>}
+        <Link className="botao pequeno" to={`/propostas/${id}/pdf`}><FileDown size={16} /> PDF</Link>
+        {dados.podeEditar && <Link className="botao pequeno" to={`/propostas/${id}/editar`}><Pencil size={16} /> Editar</Link>}
         {dados.acoesPermitidas.filter((a) => ACOES[a]).map((a) => {
           const def = ACOES[a]!;
           const Icone = def.icone;
@@ -80,6 +83,9 @@ export function PropostaDetalhe() {
         })}
       </Topo>
       <div className="conteudo">
+        {dados.excedeuLimite && (
+          <Aviso tipo="erro">Proposta gerada offline depois que a empresa atingiu o limite de {dados.limitePlano} propostas do mês (RN05). A API aceitou e sinalizou; avalie o upgrade do plano.</Aviso>
+        )}
         {bloqueio && (
           <Aviso><Lock size={14} style={{ verticalAlign: -2 }} /> {bloqueio}</Aviso>
         )}
@@ -102,7 +108,7 @@ export function PropostaDetalhe() {
             <div style={{ fontSize: 30, fontWeight: 800, marginTop: 4 }} className="num">{brl(p.valor_total)}</div>
             <div className="sub">Valor total do investimento</div>
             <dl className="lista-dl">
-              {linha('Retorno estimado (payback)', typeof p.payback_meses === 'number' ? `${Math.floor(p.payback_meses / 12)} anos e ${p.payback_meses % 12} meses` : '—')}
+              {linha('Retorno estimado (payback)', periodo(p.payback_meses))}
               {linha('ROI em 25 anos', typeof p.roi_percentual === 'number' ? `${num(p.roi_percentual, 0)}%` : '—')}
               {linha('Consumo do cliente', `${num(ins.consumo_mensal_kwh, 0)} kWh/mês`)}
               {linha('Tarifa', `${brl(ins.tarifa_kwh)}/kWh`)}

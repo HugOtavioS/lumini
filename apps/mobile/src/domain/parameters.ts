@@ -19,7 +19,19 @@ export const technicalParameters = {
   selectedPowerTolerancePct: 20,
 } as const;
 
-export const commercialParameters = {
+export const commercialParameters: {
+  electricalMaterialsPerKwp: number;
+  includedPanelDistanceM: number;
+  extraCablePerMeter: number;
+  panelUpgradeFee: number;
+  laborPerKwp: number;
+  projectAndApprovalFee: number;
+  freightFee: number;
+  marginPct: number;
+  priceAdjustLimitPct: number;
+  defaultValidityDays: number;
+  maxInstallments: number;
+} = {
   electricalMaterialsPerKwp: 250,
   /**
    * SCRUM-375 — material elétrico complementar. Os R$/kWp acima cobrem até esta
@@ -41,7 +53,30 @@ export const commercialParameters = {
   defaultValidityDays: 15,
   /** Condição de pagamento sugerida (SCRUM-399). */
   maxInstallments: 24,
-} as const;
+};
+
+/** Valores que o gestor configura no painel (SCRUM-433), vindos de GET /sync/parametros. */
+export interface CompanyCommercialParameters {
+  limiteAjustePrecoPerc: number;
+  margemPadraoPerc: number;
+  materiaisEletricosPorKwp: number;
+  maoDeObraPorKwp: number;
+  artHomologacaoPadrao: number;
+  fretePadrao: number;
+  validadePadraoDias: number;
+}
+
+/** Aplica os parâmetros da empresa baixados no login; valores inválidos são ignorados. */
+export function applyCompanyParameters(p: Partial<CompanyCommercialParameters>): void {
+  const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+  if (ok(p.limiteAjustePrecoPerc)) commercialParameters.priceAdjustLimitPct = p.limiteAjustePrecoPerc;
+  if (ok(p.margemPadraoPerc)) commercialParameters.marginPct = p.margemPadraoPerc;
+  if (ok(p.materiaisEletricosPorKwp)) commercialParameters.electricalMaterialsPerKwp = p.materiaisEletricosPorKwp;
+  if (ok(p.maoDeObraPorKwp)) commercialParameters.laborPerKwp = p.maoDeObraPorKwp;
+  if (ok(p.artHomologacaoPadrao)) commercialParameters.projectAndApprovalFee = p.artHomologacaoPadrao;
+  if (ok(p.fretePadrao)) commercialParameters.freightFee = p.fretePadrao;
+  if (ok(p.validadePadraoDias) && p.validadePadraoDias > 0) commercialParameters.defaultValidityDays = Math.round(p.validadePadraoDias);
+}
 
 export const financialParameters = {
   annualTariffIncreasePct: 4,

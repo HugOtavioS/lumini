@@ -191,6 +191,27 @@ export const MIGRACOES_API: readonly MigracaoApi[] = [
                json_extract(i.value, '$.subtotal') AS subtotal
           FROM registro_sync r, json_each(r.dados, '$.itens') i WHERE r.entidade = 'Proposta';`,
   },
+  {
+    versao: 5,
+    nome: 'parametros_comerciais',
+    // SCRUM-430 / SCRUM-433 (RF29): parâmetros comerciais que o gestor
+    // configura e o app usa na precificação (RN03, RN06). Uma linha por empresa.
+    sql: `
+      CREATE TABLE parametro_comercial (
+        id_empresa                  TEXT PRIMARY KEY NOT NULL REFERENCES empresa (id_empresa),
+        limite_ajuste_preco_perc    REAL NOT NULL DEFAULT 15 CHECK (limite_ajuste_preco_perc BETWEEN 0 AND 100),
+        margem_padrao_perc          REAL NOT NULL DEFAULT 25 CHECK (margem_padrao_perc >= 0),
+        materiais_eletricos_por_kwp REAL NOT NULL DEFAULT 250 CHECK (materiais_eletricos_por_kwp >= 0),
+        mao_de_obra_por_kwp         REAL NOT NULL DEFAULT 800 CHECK (mao_de_obra_por_kwp >= 0),
+        art_homologacao_padrao      REAL NOT NULL DEFAULT 1200 CHECK (art_homologacao_padrao >= 0),
+        frete_padrao                REAL NOT NULL DEFAULT 800 CHECK (frete_padrao >= 0),
+        validade_padrao_dias        INTEGER NOT NULL DEFAULT 15 CHECK (validade_padrao_dias > 0),
+        updated_at                  TEXT NOT NULL,
+        updated_by                  TEXT NOT NULL
+      );
+      INSERT INTO parametro_comercial (id_empresa, updated_at, updated_by)
+        SELECT id_empresa, criado_em, 'sistema' FROM empresa;`,
+  },
 ];
 
 /** Aplica as migrações pendentes, cada uma numa transação. Devolve as versões aplicadas. */

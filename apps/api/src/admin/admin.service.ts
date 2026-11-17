@@ -1,11 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { calcularPrecoVenda, CATEGORIAS_EQUIPAMENTO, validarEquipamento, type Equipamento } from '@lumini/domain';
+import {
+  calcularPrecoVenda,
+  CATEGORIAS_EQUIPAMENTO,
+  precificarProposta,
+  recalcularViabilidade,
+  validarEquipamento,
+  validarItensEDesconto,
+  type Equipamento,
+} from '@lumini/domain';
 import { STATUS_PROPOSTA, acoesDoGestor, ehStatusProposta, type StatusProposta } from '@lumini/sync';
 
 import type { UsuarioAutenticado } from '../auth/auth.service';
 import { gerarHashSenha } from '../auth/senha';
 import { BancoService } from '../banco.service';
+import { inicioDoMes, limiteDaEmpresa, propostasAcimaDoLimite } from './limitePlano';
+import { gravarParametros, lerParametros } from './parametros';
 
 // Painel do gestor (UC10–UC13, RF20–RF27): indicadores, propostas, catálogo,
 // usuários, plano e logs. Tudo filtrado pela empresa do token (multi-tenant).
@@ -28,7 +38,6 @@ interface LinhaPropostaLista {
   estado: string | null;
 }
 
-const inicioDoMes = (d = new Date()) => new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
 
 @Injectable()
 export class AdminService {
@@ -130,6 +139,7 @@ export class AdminService {
       u.idEmpresa,
     );
     const busca = filtro.busca?.trim().toLowerCase();
+    const acimaDoLimite = propostasAcimaDoLimite(this.banco, u.idEmpresa);
     return linhas
       .filter((l) => !filtro.status || l.status_proposta === filtro.status)
       .filter((l) => !filtro.tecnico || l.id_usuario_responsavel === filtro.tecnico)
@@ -149,6 +159,8 @@ export class AdminService {
         tecnico: l.tecnico,
         cliente: l.cliente,
         cidade: l.cidade ? `${l.cidade}/${l.estado ?? ''}` : null,
+        /** SCRUM-436: gerada além do limite mensal do plano. */
+        excedeuLimite: acimaDoLimite.has(l.id_proposta),
       }));
   }
 
@@ -202,7 +214,159 @@ export class AdminService {
       historico,
       linhaDoTempo,
       acoesPermitidas: status ? acoesDoGestor(status) : [],
+      excedeuLimite: propostasAcimaDoLimite(this.banco, u.idEmpresa).has(id),
+      limitePlano: limiteDaEmpresa(this.banco, u.idEmpresa),
+      /** O editor só abre onde a RN11 deixa o gestor editar. */
+      podeEditar: status === 'Gerada' || status === 'Em negociação',
+      limiteAjustePrecoPerc: lerParametros(this.banco, u.idEmpresa).limiteAjustePrecoPerc,
     };
+  }
+
+  /**
+   * SCRUM-419 — Editor de Proposta. O navegador recalcula com @lumini/domain e
+   * manda itens, desconto e valores; a API confere com a mesma função (não é ela
+   * quem decide o preço), grava uma nova versão pelo mesmo push do app (RN11)
+   * e registra cada mudança no Log de Auditoria.
+   */
+  editarProposta(u: UsuarioAutenticado, id: string, corpo: Record<string, unknown>) {
+    const atual = this.bd.servidor.obter('Proposta', id);
+    if (!atual || atual.idEmpresa !== u.idEmpresa) throw new NotFoundException('Proposta não encontrada.');
+    const antes = atual.dados;
+    const status = antes.status_proposta;
+    if (status !== 'Gerada' && status !== 'Em negociação') {
+      throw new ConflictException(`O gestor só edita propostas "Gerada" ou "Em negociação" (RN11). Esta está "${String(status)}".`);
+    }
+    const params = lerParametros(this.banco, u.idEmpresa);
+    const catalogo = new Map(
+      this.banco.todos<{ id_equipamento: string; preco_venda: number; status: string; fornecedor: string; potencia_w: number | null; categoria: string }>(
+        'SELECT id_equipamento, preco_venda, status, fornecedor, potencia_w, categoria FROM equipamento WHERE id_empresa = ?', u.idEmpresa,
+      ).map((e) => [e.id_equipamento, e]),
+    );
+    const itensAntes = new Map((Array.isArray(antes.itens) ? (antes.itens as Record<string, unknown>[]) : []).map((i) => [String(i.id_equipamento), i]));
+    const entrada = Array.isArray(corpo.itens) ? (corpo.itens as Record<string, unknown>[]) : [];
+    const erros: string[] = [];
+    const itens = entrada.map((i, n) => {
+      const idEq = String(i.id_equipamento ?? '');
+      const eq = catalogo.get(idEq);
+      const anterior = itensAntes.get(idEq);
+      if (!eq) erros.push(`Item ${n + 1}: equipamento não encontrado no catálogo da empresa.`);
+      else if (!anterior && eq.status !== 'Ativo') erros.push(`Item ${n + 1}: equipamento oculto no catálogo não pode entrar na proposta.`);
+      // Item que já estava mantém o preço de catálogo da época; item novo usa o preço atual.
+      const precoCatalogo = anterior ? Number(anterior.preco_catalogo ?? anterior.preco_unitario) : Number(eq?.preco_venda ?? 0);
+      return {
+        id_equipamento: idEq,
+        quantidade: Number(i.quantidade),
+        precoCatalogo,
+        ajustePercentual: Number(i.ajuste_percentual ?? 0),
+        fornecedor: String(anterior?.fornecedor ?? eq?.fornecedor ?? ''),
+        potenciaW: eq?.potencia_w ?? null,
+        categoria: eq?.categoria ?? null,
+      };
+    });
+    const desconto = Number(corpo.desconto_comercial_perc ?? 0);
+    erros.push(...validarItensEDesconto(itens, desconto, params.limiteAjustePrecoPerc));
+    if (erros.length > 0) throw new BadRequestException(erros.join(' '));
+
+    const servicos = {
+      materiaisEletricos: Number(antes.valor_materiais_eletricos ?? 0),
+      maoDeObra: Number(antes.valor_mao_de_obra ?? 0),
+      artHomologacao: Number(antes.valor_art_homologacao ?? 0),
+      logisticaFrete: Number(antes.valor_logistica_frete ?? 0),
+    };
+    const preco = precificarProposta({ itens, servicos, margemPercentual: Number(antes.margem_percentual ?? 0), descontoComercialPerc: desconto });
+    // Conferência do valor que o navegador calculou (mesma função, mesmo resultado).
+    if (corpo.valor_total !== undefined && Math.abs(Number(corpo.valor_total) - preco.valorTotal) > 0.01) {
+      throw new BadRequestException('O total enviado não confere com a regra de precificação (RN03). Recarregue a proposta e tente de novo.');
+    }
+    // Potência e geração acompanham os módulos; os serviços ficam como o técnico gerou.
+    const kwpModulos = (lista: { categoria: unknown; potenciaW?: unknown; quantidade: unknown }[]) =>
+      lista.filter((i) => i.categoria === 'Módulo').reduce((t, i) => t + (Number(i.potenciaW ?? 0) * Number(i.quantidade)) / 1000, 0);
+    const kwpAntes = kwpModulos([...itensAntes.values()].map((i) => ({ categoria: catalogo.get(String(i.id_equipamento))?.categoria, potenciaW: catalogo.get(String(i.id_equipamento))?.potencia_w, quantidade: i.quantidade })));
+    const kwpDepois = kwpModulos(itens);
+    const kwpBase = Number(antes.potencia_kwp ?? 0);
+    const potenciaKwp = kwpAntes > 0 && kwpDepois > 0 ? Math.round(kwpBase * (kwpDepois / kwpAntes) * 1000) / 1000 : kwpBase;
+    const geracao = kwpBase > 0 ? Math.round(Number(antes.geracao_estimada_kwh_mes ?? 0) * (potenciaKwp / kwpBase) * 10) / 10 : Number(antes.geracao_estimada_kwh_mes ?? 0);
+    const instalacao = this.registro(u, 'Instalacao', String(antes.id_instalacao ?? ''));
+    const tarifa = Number(instalacao?.dados.tarifa_kwh ?? 0);
+    const viab = recalcularViabilidade({ valorTotal: preco.valorTotal, geracaoMensalKwh: geracao, tarifaKwh: tarifa });
+
+    const dados: Record<string, unknown> = {
+      ...antes,
+      itens: preco.itens.map(({ item, precoUnitario, subtotal }) => ({
+        id_item: `${id}-${item.id_equipamento}`,
+        id_proposta: id,
+        id_equipamento: item.id_equipamento,
+        quantidade: item.quantidade,
+        preco_catalogo: item.precoCatalogo,
+        ajuste_percentual: item.ajustePercentual,
+        preco_unitario: precoUnitario,
+        subtotal,
+        fornecedor: item.fornecedor,
+        observacoes: null,
+      })),
+      potencia_kwp: potenciaKwp,
+      geracao_estimada_kwh_mes: geracao,
+      valor_equipamentos: preco.valorEquipamentos,
+      valor_margem: preco.valorMargem,
+      desconto_comercial_perc: desconto,
+      valor_total: preco.valorTotal,
+      economia_mensal_estimada: viab.economiaMensal,
+      economia_25_anos: viab.economia25Anos,
+      payback_meses: viab.paybackMeses,
+      roi_percentual: viab.roiPercentual,
+      numero_versao: Number(antes.numero_versao ?? 1) + 1,
+    };
+    const agora = new Date(Math.max(Date.now(), Date.parse(atual.updatedAt) + 1)).toISOString();
+    const r = this.bd.servidor.push(u, {
+      idDispositivo: `painel-${u.idUsuario}`,
+      operacoes: [{ idOperacao: `Proposta:${id}`, entidade: 'Proposta', baseUpdatedAt: atual.updatedAt, versao: { ...atual, updatedAt: agora, updatedBy: u.idUsuario, dados } }],
+    });
+    const resultado = r.resultados[0]!;
+    if (resultado.situacao !== 'aplicada') throw new ConflictException(resultado.mensagem);
+
+    // Log de Auditoria (Dicionário 8.1): uma linha por mudança.
+    const log = (campo: string, de: unknown, para: unknown) =>
+      this.banco.executar(
+        `INSERT INTO log_auditoria (id_log, id_empresa, entidade, id_registro, campo, valor_anterior, valor_novo, id_usuario, origem, data_hora, motivo)
+         VALUES (?, ?, 'Proposta', ?, ?, ?, ?, ?, 'Web', ?, 'Editor de proposta no painel')`,
+        randomUUID(), u.idEmpresa, id, campo, de == null ? null : String(de), para == null ? null : String(para), u.idUsuario, agora,
+      );
+    const nome = (idEq: string) => {
+      const e = this.banco.um<{ fabricante: string; modelo: string }>('SELECT fabricante, modelo FROM equipamento WHERE id_equipamento = ?', idEq);
+      return e ? `${e.fabricante} ${e.modelo}` : idEq;
+    };
+    const novosItens = new Map(itens.map((i) => [i.id_equipamento, i]));
+    for (const [idEq, i] of itensAntes) {
+      const n = novosItens.get(idEq);
+      if (!n) log('(item removido)', `${nome(idEq)} × ${String(i.quantidade)}`, null);
+      else {
+        if (Number(i.quantidade) !== n.quantidade) log(`quantidade · ${nome(idEq)}`, i.quantidade, n.quantidade);
+        if (Number(i.ajuste_percentual ?? 0) !== n.ajustePercentual) log(`ajuste_percentual · ${nome(idEq)}`, i.ajuste_percentual ?? 0, n.ajustePercentual);
+      }
+    }
+    for (const [idEq, n] of novosItens) if (!itensAntes.has(idEq)) log('(item incluído)', null, `${nome(idEq)} × ${n.quantidade}`);
+    if (Number(antes.desconto_comercial_perc ?? 0) !== desconto) log('desconto_comercial_perc', antes.desconto_comercial_perc ?? 0, desconto);
+    if (Number(antes.valor_total ?? 0) !== preco.valorTotal) log('valor_total', antes.valor_total, preco.valorTotal);
+    log('numero_versao', antes.numero_versao ?? 1, dados.numero_versao);
+    return this.detalheProposta(u, id);
+  }
+
+  // ---------- Parâmetros comerciais (SCRUM-433 / RF29) ----------
+
+  parametros(u: UsuarioAutenticado) {
+    return lerParametros(this.banco, u.idEmpresa);
+  }
+
+  salvarParametros(u: UsuarioAutenticado, corpo: Record<string, unknown>) {
+    const r = gravarParametros(this.banco, u.idEmpresa, u.idUsuario, corpo);
+    for (const m of r.mudou) {
+      this.banco.executar(
+        `INSERT INTO log_auditoria (id_log, id_empresa, entidade, id_registro, campo, valor_anterior, valor_novo, id_usuario, origem, data_hora, motivo)
+         VALUES (?, ?, 'Empresa', ?, ?, ?, ?, ?, 'Web', ?, 'Parâmetros comerciais')`,
+        randomUUID(), u.idEmpresa, u.idEmpresa, m.campo, String(m.antes), String(m.depois), u.idUsuario, r.agora,
+      );
+    }
+    return r.parametros;
   }
 
   /** RF27: o gestor muda o status. Passa pelo mesmo push do app, então o RN11 vale aqui também. */
@@ -339,6 +503,8 @@ export class AdminService {
       status: a?.status ?? 'Ativa',
       limiteMes: a?.limite_propostas_mes ?? null,
       usadasMes: usadas,
+      /** SCRUM-436: geradas offline além do limite neste mês. */
+      acimaDoLimiteMes: propostasAcimaDoLimite(this.banco, u.idEmpresa).size,
       inicioEm: a?.inicio_em ?? null,
       solicitacoesUpgrade: solicitacoes,
     };

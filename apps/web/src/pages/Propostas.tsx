@@ -100,7 +100,7 @@ export function Propostas() {
                     <td className="direita mono">{num(p.potenciaKwp)} kWp</td>
                     <td className="direita mono" style={{ fontWeight: 600 }}>{brl(p.valorTotal)}</td>
                     <td>{data(p.dataGeracao ?? p.atualizadaEm)}</td>
-                    <td><SeloStatus status={p.status} /></td>
+                    <td><SeloStatus status={p.status} />{p.excedeuLimite && <> <span className="selo limite" title="Gerada além do limite mensal do plano (RN05)">Acima do limite</span></>}</td>
                   </tr>
                 ))}
                 {filtradas.length === 0 && (

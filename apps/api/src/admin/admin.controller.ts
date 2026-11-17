@@ -32,6 +32,23 @@ export class AdminController {
     return this.admin.mudarStatus(u, id, corpo?.status);
   }
 
+  /** SCRUM-419 — Editor de Proposta (itens, desconto, nova versão). */
+  @Put('propostas/:id')
+  editarProposta(@Usuario() u: UsuarioAutenticado, @Param('id') id: string, @Body() corpo: Record<string, unknown>) {
+    return this.admin.editarProposta(u, id, corpo ?? {});
+  }
+
+  /** SCRUM-433 — parâmetros comerciais da empresa. */
+  @Get('parametros')
+  parametros(@Usuario() u: UsuarioAutenticado) {
+    return this.admin.parametros(u);
+  }
+
+  @Put('parametros')
+  salvarParametros(@Usuario() u: UsuarioAutenticado, @Body() corpo: Record<string, unknown>) {
+    return this.admin.salvarParametros(u, corpo ?? {});
+  }
+
   @Get('equipamentos')
   equipamentos(@Usuario() u: UsuarioAutenticado) {
     return this.admin.listarEquipamentos(u);

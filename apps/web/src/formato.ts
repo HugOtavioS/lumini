@@ -41,3 +41,13 @@ export const iniciais = (nome: string) =>
     .slice(0, 2)
     .map((p) => p[0]!.toUpperCase())
     .join('');
+
+/** Payback em meses → "6 anos e 3 meses" (com singular certo). */
+export const periodo = (meses: unknown) => {
+  if (typeof meses !== 'number' || !Number.isFinite(meses)) return '—';
+  const a = Math.floor(meses / 12);
+  const m = meses % 12;
+  const anos = a === 1 ? '1 ano' : `${a} anos`;
+  const ms = m === 1 ? '1 mês' : `${m} meses`;
+  return a === 0 ? ms : m === 0 ? anos : `${anos} e ${ms}`;
+};

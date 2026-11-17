@@ -176,3 +176,23 @@ td.forte { font-weight: 600; }
 }
 .girar { animation: girar 0.9s linear infinite; }
 @keyframes girar { to { transform: rotate(360deg); } }
+
+/* SCRUM-422 — proposta para impressão / PDF (modelo de 3 páginas) */
+.pdf { background: var(--fundo, #f1f5f9); min-height: 100vh; padding: 24px 16px 48px; }
+.pdf-barra { max-width: 800px; margin: 0 auto 16px; display: flex; justify-content: space-between; gap: 12px; }
+.pdf-pagina { max-width: 800px; margin: 0 auto 24px; background: #fff; border-radius: 8px; box-shadow: var(--sombra); padding: 48px; min-height: 1000px; display: flex; flex-direction: column; gap: 16px; }
+.pdf-pagina h1 { font-size: 34px; margin: 8px 0; }
+.pdf-pagina h2 { font-size: 20px; border-bottom: 2px solid var(--laranja-500); padding-bottom: 6px; }
+.pdf-capa { justify-content: space-between; background: linear-gradient(160deg, #fff 60%, var(--laranja-50)); }
+.pdf-marca { font-size: 22px; font-weight: 800; color: var(--azul-900); }
+.pdf-total { display: flex; justify-content: space-between; align-items: baseline; background: var(--azul-900); color: #fff; border-radius: 10px; padding: 18px 22px; margin: 12px 0; }
+.pdf-total strong { font-size: 28px; }
+@media print {
+  .pdf { background: #fff; padding: 0; }
+  .pdf-barra { display: none; }
+  .pdf-pagina { box-shadow: none; border-radius: 0; margin: 0; min-height: auto; padding: 24px 8px; break-after: page; }
+  .pdf-pagina:last-child { break-after: auto; }
+}
+
+/* SCRUM-436 — proposta gerada além do limite do plano */
+.selo.limite { background: var(--vermelho-suave); color: var(--vermelho-texto); }

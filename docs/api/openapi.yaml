@@ -207,6 +207,27 @@ paths:
       responses:
         '200': { description: '{ atualizadoEm, equipamentos: Equipamento[] } com precoVenda.' }
         '401': { $ref: '#/components/responses/NaoAutenticado' }
+  /sync/parametros:
+    get:
+      tags: [Sincronização]
+      summary: Parâmetros comerciais da empresa para o app (SCRUM-433)
+      description: Limite de ajuste de preço (RN06), margem, custos padrão e validade usados na precificação do app (RN03).
+      responses:
+        '200': { description: 'ParametrosComerciais' }
+        '401': { $ref: '#/components/responses/NaoAutenticado' }
+  /admin/parametros:
+    get:
+      tags: [Painel do gestor]
+      summary: Lê os parâmetros comerciais da empresa (SCRUM-433 / RF29)
+      responses:
+        '200': { description: ParametrosComerciais com data e autor da última alteração. }
+    put:
+      tags: [Painel do gestor]
+      summary: Altera os parâmetros comerciais (cada mudança vai para o Log de Auditoria)
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: Parâmetros salvos. }
+        '400': { description: Valor fora da faixa permitida. }
   /admin/resumo:
     get:
       tags: [Painel do gestor]
@@ -230,6 +251,31 @@ paths:
       responses:
         '200': { description: Proposta, itens, medição, sombreamento, histórico de status e ações permitidas (RN11). }
         '404': { description: Proposta não encontrada nesta empresa. }
+    put:
+      tags: [Painel do gestor]
+      summary: Editor de Proposta — itens, quantidades, ajustes e desconto comercial (SCRUM-419 / RF27)
+      description: |
+        O navegador recalcula com @lumini/domain e envia o total; a API confere com a mesma função
+        (D23), valida o limite de ajuste da empresa (RN06) e a RN11 (só "Gerada" e "Em negociação"),
+        grava a versão seguinte e registra cada mudança no Log de Auditoria.
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [itens]
+              properties:
+                itens:
+                  type: array
+                  items: { type: object, properties: { id_equipamento: { type: string }, quantidade: { type: integer }, ajuste_percentual: { type: number } } }
+                desconto_comercial_perc: { type: number, minimum: 0, maximum: 99.99 }
+                valor_total: { type: number, description: Total calculado no navegador (conferido pela API) }
+      responses:
+        '200': { description: Detalhe da proposta já na nova versão. }
+        '400': { description: Item inválido, ajuste fora do limite ou total que não confere. }
+        '409': { description: Status não editável pelo gestor (RN11). }
   /admin/propostas/{id}/status:
     post:
       tags: [Painel do gestor]

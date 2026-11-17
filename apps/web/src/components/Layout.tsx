@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router';
-import { CreditCard, Database, FileText, LayoutGrid, LogOut, RefreshCw, Users } from 'lucide-react';
+import { CreditCard, Database, FileText, LayoutGrid, LogOut, RefreshCw, SlidersHorizontal, Users } from 'lucide-react';
 
 import { useSessao } from '../sessao';
 import { iniciais } from '../formato';
@@ -10,6 +10,7 @@ const ITENS = [
   { para: '/catalogo', icone: Database, rotulo: 'Catálogo' },
   { para: '/plano', icone: CreditCard, rotulo: 'Plano' },
   { para: '/equipe', icone: Users, rotulo: 'Equipe' },
+  { para: '/parametros', icone: SlidersHorizontal, rotulo: 'Parâmetros' },
   { para: '/sincronizacoes', icone: RefreshCw, rotulo: 'Sincronizações' },
 ];
 
