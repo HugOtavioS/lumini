@@ -56,6 +56,21 @@ export class ArmazenamentoSqlite implements ArmazenamentoServidor {
     const [entidade, id] = separar(chave);
     const seq = this.posicaoAtual() + 1;
     const v = registro.versao;
+    // SCRUM-90: nova versão da proposta não apaga a anterior — guarda uma cópia.
+    if (entidade === 'Proposta') {
+      const anterior = this.banco.um<LinhaRegistro>('SELECT * FROM registro_sync WHERE entidade = ? AND id_registro = ?', entidade, id);
+      if (anterior) {
+        const dadosAntes = JSON.parse(anterior.dados) as Record<string, unknown>;
+        const versaoAntes = Number(dadosAntes.numero_versao ?? 1);
+        if (versaoAntes !== Number(v.dados.numero_versao ?? 1)) {
+          this.banco.executar(
+            `INSERT INTO proposta_versao (id_proposta, numero_versao, id_empresa, dados, updated_at, updated_by)
+             VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id_proposta, numero_versao) DO NOTHING`,
+            id, versaoAntes, anterior.id_empresa, anterior.dados, anterior.updated_at, anterior.updated_by,
+          );
+        }
+      }
+    }
     this.banco.executar(
       `INSERT INTO registro_sync (entidade, id_registro, id_empresa, dados, updated_at, updated_by, id_dispositivo, seq)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)

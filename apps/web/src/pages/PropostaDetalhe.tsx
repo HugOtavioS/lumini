@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import { AlertTriangle, Check, FileDown, FilePlus2, Handshake, Lock, MessageCircle, Pencil, RotateCcw, X } from 'lucide-react';
 import { motivoBloqueio, type AcaoGestor } from '@lumini/sync';
 
 import { api, ErroApi } from '../api';
 import { Aviso, Carregando, Modal, SeloStatus, Topo, toast, useDados } from '../components/comum';
 import { brl, data, dataHora, num, telefone, periodo } from '../formato';
-import type { DetalheProposta, StatusProposta } from '../tipos';
+import type { DetalheProposta, StatusProposta, VersaoProposta } from '../tipos';
 
 // RF27 / RN11: os botões vêm de `acoesDoGestor` (@lumini/sync), a mesma regra
 // que a API aplica no push. O que não aparece aqui, a API também recusaria.
@@ -27,7 +27,11 @@ const linha = (rotulo: string, valor: React.ReactNode) => (
 
 export function PropostaDetalhe() {
   const { id = '' } = useParams();
-  const { dados, erro, carregando, setDados } = useDados(() => api.get<DetalheProposta>(`/admin/propostas/${id}`), [id]);
+  // SCRUM-90: ?versao=N mostra uma versão anterior (somente leitura).
+  const versao = useSearchParams()[0].get('versao');
+  const sufixo = versao ? `?versao=${encodeURIComponent(versao)}` : '';
+  const { dados, erro, carregando, setDados } = useDados(() => api.get<DetalheProposta>(`/admin/propostas/${id}${sufixo}`), [id, sufixo]);
+  const versoes = useDados(() => api.get<VersaoProposta[]>(`/admin/propostas/${id}/versoes`), [id, dados?.versaoAtual]);
   const [confirmando, setConfirmando] = useState<AcaoGestor | null>(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -70,7 +74,7 @@ export function PropostaDetalhe() {
       <Topo titulo={String(c.nome_razao_social ?? p.numero_proposta)} migalha={<><Link to="/propostas">Propostas</Link> › {String(p.numero_proposta)} · versão {String(p.numero_versao ?? 1)}</>}>
         <SeloStatus status={status} />
         {dados.excedeuLimite && <span className="selo limite"><AlertTriangle size={13} /> Acima do limite do plano</span>}
-        <Link className="botao pequeno" to={`/propostas/${id}/pdf`}><FileDown size={16} /> PDF</Link>
+        <Link className="botao pequeno" to={`/propostas/${id}/pdf${dados.versaoAnterior ? sufixo : ''}`}><FileDown size={16} /> PDF</Link>
         {dados.podeEditar && <Link className="botao pequeno" to={`/propostas/${id}/editar`}><Pencil size={16} /> Editar</Link>}
         {dados.acoesPermitidas.filter((a) => ACOES[a]).map((a) => {
           const def = ACOES[a]!;
@@ -83,6 +87,9 @@ export function PropostaDetalhe() {
         })}
       </Topo>
       <div className="conteudo">
+        {dados.versaoAnterior && (
+          <Aviso>Você está vendo a versão {String(p.numero_versao ?? 1)}, guardada antes de uma alteração. Ela é só para consulta. <Link to={`/propostas/${id}`} style={{ color: 'var(--verde-texto)', fontWeight: 700 }}>Ir para a versão atual ({dados.versaoAtual})</Link></Aviso>
+        )}
         {dados.excedeuLimite && (
           <Aviso tipo="erro">Proposta gerada offline depois que a empresa atingiu o limite de {dados.limitePlano} propostas do mês (RN05). A API aceitou e sinalizou; avalie o upgrade do plano.</Aviso>
         )}
@@ -137,6 +144,30 @@ export function PropostaDetalhe() {
                 <li key={l.em}><SeloStatus status={l.status} /><span className="contagem">{dataHora(l.em)}</span></li>
               ))}
             </ul>
+            {(versoes.dados?.length ?? 0) > 1 && (
+              <div style={{ marginTop: 16, borderTop: '1px solid var(--azul-100)', paddingTop: 12 }}>
+                <strong style={{ fontSize: 13 }}>Versões</strong>
+                <table className="versoes" style={{ marginTop: 6 }}>
+                  <tbody>
+                    {versoes.dados!.map((v) => {
+                      const vendo = Number(p.numero_versao ?? 1) === v.versao;
+                      return (
+                        <tr key={v.versao} className={vendo ? 'vendo' : undefined}>
+                          <td><strong>v{v.versao}</strong>{v.atual && <span className="contagem"> · atual</span>}</td>
+                          <td className="contagem">{dataHora(v.salvaEm)}{v.salvaPor ? ` · ${v.salvaPor}` : ''}</td>
+                          <td className="direita num">{brl(v.valorTotal)}</td>
+                          <td className="direita">
+                            {vendo ? <span className="contagem">vendo</span> : <Link to={v.atual ? `/propostas/${id}` : `/propostas/${id}?versao=${v.versao}`}>Ver</Link>}
+                            {' · '}
+                            <Link to={v.atual ? `/propostas/${id}/pdf` : `/propostas/${id}/pdf?versao=${v.versao}`}>PDF</Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
             {dados.historico.length > 0 && (
               <div style={{ marginTop: 16, borderTop: '1px solid var(--azul-100)', paddingTop: 12 }}>
                 {dados.historico.slice(0, 5).map((h, i) => (

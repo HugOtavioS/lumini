@@ -10,8 +10,8 @@ export function proposalFileName(proposal: Proposal): string {
 }
 
 /**
- * Abre o WhatsApp com o resumo da proposta. O anexo do PDF entra junto com a
- * geração do documento (RF12), via compartilhamento nativo de arquivos.
+ * Resumo da proposta em texto (WhatsApp/e-mail). O PDF anexado vai pelo
+ * compartilhamento nativo de arquivos (pdf/pdf.ts, SCRUM-89).
  */
 function summaryText(proposal: Proposal): string {
   return [

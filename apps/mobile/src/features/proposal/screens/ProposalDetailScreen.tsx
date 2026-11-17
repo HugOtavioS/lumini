@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Copy, Ellipsis, Mail, MessageCircle, Pencil, RefreshCw } from 'lucide-react-native';
+import { Copy, Ellipsis, FileText, Mail, MessageCircle, Pencil, RefreshCw, Share2 } from 'lucide-react-native';
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -18,13 +18,15 @@ import {
 import { categoryLabels, connectionTypeLabels, describePaymentCondition, tariffModalityLabels } from '@/domain/labels';
 import { canTechnicianEdit } from '@/domain/services/proposalRules';
 import { itemTotal } from '@/domain/services/pricing';
+import { openProposalPdf, shareProposalPdf } from '../pdf/pdf';
+import { usePdfExtras } from '../pdf/usePdfExtras';
 import { useAppStore } from '@/store/AppStore';
 import { useDraft } from '@/store/DraftStore';
 import { colors, navy, orange, radius, semantic } from '@/theme';
 import { addDays, formatCurrency, formatDate, formatElapsed, formatNumber } from '@/utils/format';
 import { notify } from '@/utils/notify';
 import { duplicateProposal, editProposal } from '../editProposal';
-import { shareChannels, shareProposal, shareViaEmail, shareViaWhatsApp } from '../share';
+import { shareChannels, shareViaEmail, shareViaWhatsApp } from '../share';
 
 // Detalhe da Proposta (RF13, passo 4).
 export default function ProposalDetailScreen() {
@@ -32,7 +34,20 @@ export default function ProposalDetailScreen() {
   const { getProposal, syncNow, isSyncing } = useAppStore();
   const draft = useDraft();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState<'open' | 'share' | null>(null);
+  const pdfExtras = usePdfExtras();
   const proposal = id ? getProposal(id) : undefined;
+
+  async function runPdf(action: 'open' | 'share') {
+    if (!proposal || pdfBusy) return;
+    setPdfBusy(action);
+    try {
+      if (action === 'open') await openProposalPdf(proposal, pdfExtras);
+      else await shareProposalPdf(proposal, pdfExtras);
+    } finally {
+      setPdfBusy(null);
+    }
+  }
 
   const header = (
     <Header
@@ -87,12 +102,10 @@ export default function ProposalDetailScreen() {
       statusBarStyle="light"
       footer={
         <>
-          <Button
-            label="Abrir PDF"
-            onPress={() => notify('PDF da proposta', 'A visualização do PDF será integrada ao template oficial da proposta (RF12).')}
-          />
+          {/* SCRUM-22/89: PDF gerado no aparelho e enviado como anexo. */}
+          <Button label="Abrir PDF" icon={FileText} loading={pdfBusy === 'open'} onPress={() => runPdf('open')} />
           <Button label="Duplicar Proposta" variant="outline" icon={Copy} onPress={() => duplicateProposal(proposal, draft.load)} />
-          <Button label="Reenviar Proposta" variant="outlineDark" onPress={() => shareProposal(proposal)} />
+          <Button label="Reenviar PDF" variant="outlineDark" icon={Share2} loading={pdfBusy === 'share'} onPress={() => runPdf('share')} />
         </>
       }
       contentStyle={styles.content}

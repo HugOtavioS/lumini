@@ -77,6 +77,16 @@ describe('SCRUM-419 — Editor de Proposta', () => {
     expect(r.corpo.proposta.potencia_kwp).toBeGreaterThan(p.potencia_kwp);
     expect(r.corpo.proposta.payback_meses).toBeGreaterThan(0);
     expect(r.corpo.historico.map((h: any) => h.campo)).toEqual(expect.arrayContaining(['desconto_comercial_perc', 'valor_total', 'numero_versao']));
+
+    // SCRUM-90: a versão anterior continua consultável, igual ao que era.
+    const versoes = (await chamar(`/admin/propostas/${id}/versoes`, { token: g })).corpo;
+    expect(versoes.map((v: any) => [v.versao, v.atual])).toEqual([[Number(p.numero_versao) + 1, true], [Number(p.numero_versao), false]]);
+    expect(versoes[1].valorTotal).toBe(p.valor_total);
+    const velha = (await chamar(`/admin/propostas/${id}?versao=${p.numero_versao}`, { token: g })).corpo;
+    expect(velha).toMatchObject({ versaoAnterior: true, podeEditar: false, acoesPermitidas: [], versaoAtual: Number(p.numero_versao) + 1 });
+    expect(velha.proposta.valor_total).toBe(p.valor_total);
+    expect(velha.proposta.itens.map((i: any) => i.quantidade)).toEqual(p.itens.map((i: any) => i.quantidade));
+    expect((await chamar(`/admin/propostas/${id}?versao=99`, { token: g })).status).toBe(404);
   });
 
   it('recusa ajuste acima do limite da empresa, técnico e proposta encerrada', async () => {

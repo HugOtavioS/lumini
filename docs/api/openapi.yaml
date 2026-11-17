@@ -243,14 +243,27 @@ paths:
       responses:
         '200': { description: Propostas com cliente, cidade, técnico, kWp, valor e status. }
         '403': { description: Somente Gestor Comercial. }
+  /admin/propostas/{id}/versoes:
+    get:
+      tags: [Painel do gestor]
+      summary: Versões da proposta — a atual e as anteriores guardadas (SCRUM-90 / RF20)
+      description: |
+        Sempre que o número de versão muda (edição no painel, "gerar nova versão" ou push do app),
+        a API guarda a versão anterior inteira em proposta_versao. Nenhuma versão é perdida.
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: 'Lista [{ versao, atual, status, valorTotal, salvaEm, salvaPor }], da mais nova para a mais antiga.' }
+        '404': { description: Proposta não encontrada nesta empresa. }
   /admin/propostas/{id}:
     get:
       tags: [Painel do gestor]
       summary: Detalhe técnico e comercial com linha do tempo (RF23)
-      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: versao, in: query, required: false, schema: { type: integer }, description: 'SCRUM-90 — abre uma versão anterior (somente leitura: podeEditar=false, sem ações).' }
       responses:
         '200': { description: Proposta, itens, medição, sombreamento, histórico de status e ações permitidas (RN11). }
-        '404': { description: Proposta não encontrada nesta empresa. }
+        '404': { description: Proposta (ou a versão pedida) não encontrada nesta empresa. }
     put:
       tags: [Painel do gestor]
       summary: Editor de Proposta — itens, quantidades, ajustes e desconto comercial (SCRUM-419 / RF27)

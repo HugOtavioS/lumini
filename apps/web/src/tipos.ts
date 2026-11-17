@@ -77,6 +77,19 @@ export interface DetalheProposta {
   limitePlano: number | null;
   podeEditar: boolean;
   limiteAjustePrecoPerc: number;
+  /** SCRUM-90: número da versão atual e se a tela mostra uma anterior. */
+  versaoAtual: number;
+  versaoAnterior: boolean;
+}
+
+/** SCRUM-90 — versões guardadas da proposta (a atual primeiro). */
+export interface VersaoProposta {
+  versao: number;
+  atual: boolean;
+  status: StatusProposta | null;
+  valorTotal: number;
+  salvaEm: string;
+  salvaPor: string | null;
 }
 
 /** SCRUM-433 — parâmetros comerciais da empresa (RF29). */

@@ -23,8 +23,14 @@ export class AdminController {
   }
 
   @Get('propostas/:id')
-  proposta(@Usuario() u: UsuarioAutenticado, @Param('id') id: string) {
-    return this.admin.detalheProposta(u, id);
+  proposta(@Usuario() u: UsuarioAutenticado, @Param('id') id: string, @Query('versao') versao?: string) {
+    return this.admin.detalheProposta(u, id, versao ? Number(versao) : undefined);
+  }
+
+  /** SCRUM-90 — versões da proposta (a atual e as anteriores guardadas). */
+  @Get('propostas/:id/versoes')
+  versoes(@Usuario() u: UsuarioAutenticado, @Param('id') id: string) {
+    return this.admin.versoesProposta(u, id);
   }
 
   @Post('propostas/:id/status')

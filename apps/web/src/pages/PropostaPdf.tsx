@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import { Printer } from 'lucide-react';
 
 import { api } from '../api';
@@ -15,7 +15,10 @@ const n = (v: unknown) => (typeof v === 'number' ? v : Number(v) || 0);
 
 export function PropostaPdf() {
   const { id = '' } = useParams();
-  const det = useDados(() => api.get<DetalheProposta>(`/admin/propostas/${id}`), [id]);
+  // SCRUM-90: ?versao=N gera o PDF de uma versão anterior, como ela era.
+  const versao = useSearchParams()[0].get('versao');
+  const sufixo = versao ? `?versao=${encodeURIComponent(versao)}` : '';
+  const det = useDados(() => api.get<DetalheProposta>(`/admin/propostas/${id}${sufixo}`), [id, sufixo]);
   const resumo = useDados(() => api.get<Resumo>('/admin/resumo'));
   const pronto = !!det.dados && !!resumo.dados;
   useEffect(() => {
@@ -36,7 +39,7 @@ export function PropostaPdf() {
   return (
     <div className="pdf">
       <div className="pdf-barra">
-        <Link className="botao pequeno" to={`/propostas/${id}`}>Voltar</Link>
+        <Link className="botao pequeno" to={`/propostas/${id}${sufixo}`}>Voltar</Link>
         <button className="botao primario pequeno" onClick={() => window.print()}><Printer size={16} /> Imprimir / salvar PDF</button>
       </div>
 

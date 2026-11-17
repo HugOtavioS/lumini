@@ -196,3 +196,8 @@ td.forte { font-weight: 600; }
 
 /* SCRUM-436 — proposta gerada além do limite do plano */
 .selo.limite { background: var(--vermelho-suave); color: var(--vermelho-texto); }
+
+/* SCRUM-90 — lista de versões da proposta */
+table.versoes td { padding: 6px 4px; font-size: 13px; white-space: nowrap; }
+table.versoes tr.vendo td { background: var(--azul-100); }
+table.versoes a { color: var(--verde-texto); font-weight: 700; }

@@ -212,6 +212,23 @@ export const MIGRACOES_API: readonly MigracaoApi[] = [
       INSERT INTO parametro_comercial (id_empresa, updated_at, updated_by)
         SELECT id_empresa, criado_em, 'sistema' FROM empresa;`,
   },
+  {
+    versao: 6,
+    nome: 'proposta_versao',
+    // SCRUM-90 (RF20): cada vez que a proposta ganha um número de versão novo,
+    // a versão anterior fica guardada aqui, inteira, para consulta e PDF.
+    sql: `
+      CREATE TABLE proposta_versao (
+        id_proposta   TEXT NOT NULL,
+        numero_versao INTEGER NOT NULL CHECK (numero_versao >= 1),
+        id_empresa    TEXT NOT NULL REFERENCES empresa (id_empresa),
+        dados         TEXT NOT NULL,
+        updated_at    TEXT NOT NULL,
+        updated_by    TEXT NOT NULL,
+        PRIMARY KEY (id_proposta, numero_versao)
+      );
+      CREATE INDEX ix_proposta_versao_empresa ON proposta_versao (id_empresa);`,
+  },
 ];
 
 /** Aplica as migrações pendentes, cada uma numa transação. Devolve as versões aplicadas. */

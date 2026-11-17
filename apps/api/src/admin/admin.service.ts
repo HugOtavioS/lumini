@@ -164,10 +164,43 @@ export class AdminService {
       }));
   }
 
-  detalheProposta(u: UsuarioAutenticado, id: string) {
+  /** SCRUM-90: versões da proposta — as anteriores guardadas e a atual. */
+  versoesProposta(u: UsuarioAutenticado, id: string) {
+    const atual = this.registro(u, 'Proposta', id);
+    if (!atual) throw new NotFoundException('Proposta não encontrada.');
+    const anteriores = this.banco
+      .todos<{ numero_versao: number; dados: string; updated_at: string; nome: string | null }>(
+        `SELECT v.numero_versao, v.dados, v.updated_at, us.nome FROM proposta_versao v
+           LEFT JOIN usuario us ON us.id_usuario = v.updated_by
+          WHERE v.id_proposta = ? AND v.id_empresa = ? ORDER BY v.numero_versao DESC`,
+        id, u.idEmpresa,
+      )
+      .map((l) => {
+        const d = JSON.parse(l.dados) as Record<string, unknown>;
+        return { versao: Number(l.numero_versao), atual: false, status: d.status_proposta ?? null, valorTotal: Number(d.valor_total ?? 0), salvaEm: l.updated_at, salvaPor: l.nome };
+      });
+    const autor = this.banco.um<{ nome: string }>('SELECT nome FROM usuario WHERE id_usuario = ?', atual.updatedBy);
+    const versaoAtual = Number(atual.dados.numero_versao ?? 1);
+    return [
+      { versao: versaoAtual, atual: true, status: atual.dados.status_proposta ?? null, valorTotal: Number(atual.dados.valor_total ?? 0), salvaEm: atual.updatedAt, salvaPor: autor?.nome ?? null },
+      ...anteriores.filter((v) => v.versao !== versaoAtual),
+    ];
+  }
+
+  detalheProposta(u: UsuarioAutenticado, id: string, versao?: number) {
     const proposta = this.registro(u, 'Proposta', id);
     if (!proposta) throw new NotFoundException('Proposta não encontrada.');
-    const dados = proposta.dados;
+    let dados = proposta.dados;
+    // SCRUM-90: ?versao=N abre uma versão anterior (somente leitura).
+    const versaoAtual = Number(dados.numero_versao ?? 1);
+    const ehAnterior = versao !== undefined && Number.isFinite(versao) && versao !== versaoAtual;
+    if (ehAnterior) {
+      const l = this.banco.um<{ dados: string }>(
+        'SELECT dados FROM proposta_versao WHERE id_proposta = ? AND id_empresa = ? AND numero_versao = ?', id, u.idEmpresa, versao,
+      );
+      if (!l) throw new NotFoundException(`A versão ${versao} desta proposta não foi encontrada.`);
+      dados = JSON.parse(l.dados) as Record<string, unknown>;
+    }
     const instalacao = this.registro(u, 'Instalacao', String(dados.id_instalacao ?? ''));
     const cliente = instalacao ? this.registro(u, 'Cliente', String(instalacao.dados.id_cliente ?? '')) : null;
     const medicoes = instalacao
@@ -213,11 +246,13 @@ export class AdminService {
       tecnico: tecnico ?? null,
       historico,
       linhaDoTempo,
-      acoesPermitidas: status ? acoesDoGestor(status) : [],
+      acoesPermitidas: status && !ehAnterior ? acoesDoGestor(status) : [],
+      versaoAtual,
+      versaoAnterior: ehAnterior,
       excedeuLimite: propostasAcimaDoLimite(this.banco, u.idEmpresa).has(id),
       limitePlano: limiteDaEmpresa(this.banco, u.idEmpresa),
       /** O editor só abre onde a RN11 deixa o gestor editar. */
-      podeEditar: status === 'Gerada' || status === 'Em negociação',
+      podeEditar: !ehAnterior && (status === 'Gerada' || status === 'Em negociação'),
       limiteAjustePrecoPerc: lerParametros(this.banco, u.idEmpresa).limiteAjustePrecoPerc,
     };
   }

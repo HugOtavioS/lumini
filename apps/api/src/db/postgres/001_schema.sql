@@ -159,6 +159,18 @@ INSERT INTO parametro_comercial (id_empresa, updated_at, updated_by)
   SELECT id_empresa, now(), 'sistema' FROM empresa
 ON CONFLICT (id_empresa) DO NOTHING;
 
+-- 6. Versões anteriores das propostas (SCRUM-90 / RF20) ----------------------
+CREATE TABLE IF NOT EXISTS proposta_versao (
+  id_proposta   TEXT NOT NULL,
+  numero_versao INTEGER NOT NULL CHECK (numero_versao >= 1),
+  id_empresa    TEXT NOT NULL REFERENCES empresa (id_empresa),
+  dados         JSONB NOT NULL,
+  updated_at    TIMESTAMPTZ NOT NULL,
+  updated_by    TEXT NOT NULL,
+  PRIMARY KEY (id_proposta, numero_versao)
+);
+CREATE INDEX IF NOT EXISTS ix_proposta_versao_empresa ON proposta_versao (id_empresa);
+
 -- 4. Views relacionais (painel e relatórios) -------------------------------
 CREATE OR REPLACE VIEW vw_cliente AS
   SELECT r.id_registro AS id_cliente, r.id_empresa,
@@ -207,7 +219,7 @@ CREATE OR REPLACE VIEW vw_item_proposta AS
 
 INSERT INTO schema_migracoes (versao, nome) VALUES
   (1, 'empresa_usuario_assinatura'), (2, 'catalogo_equipamentos'),
-  (3, 'sincronizacao_e_logs'), (4, 'views_relacionais'), (5, 'parametros_comerciais')
+  (3, 'sincronizacao_e_logs'), (4, 'views_relacionais'), (5, 'parametros_comerciais'), (6, 'proposta_versao')
 ON CONFLICT (versao) DO NOTHING;
 
 COMMIT;
