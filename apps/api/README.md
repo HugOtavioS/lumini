@@ -20,7 +20,7 @@ Na primeira execução a API cria a empresa de demonstração **Solar Vale Energ
 
 Para o app sincronizar de verdade: `EXPO_PUBLIC_API_URL=http://<ip-do-computador>:3000` em `apps/mobile/.env.local`.
 
-Variáveis (opcional, `apps/api/.env`): `PORT`, `LUMINI_DB`, `JWT_SECRET` (obrigatória em produção), `LUMINI_SEED=nao`, `CORS_ORIGENS`.
+Variáveis (opcional, `apps/api/.env`): `PORT`, `LUMINI_DB`, `JWT_SECRET` (obrigatória em produção), `LUMINI_SEED=nao`, `CORS_ORIGENS`, e os limites de uso (SCRUM-32): `LIMITE_REQ_MINUTO` (300), `LIMITE_TENTATIVAS_LOGIN` (5), `LIMITE_CORPO` (2mb) e `CONFIAR_PROXY=sim` quando estiver atrás de Nginx/ALB na EC2.
 
 ## Banco
 

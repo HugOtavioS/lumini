@@ -10,11 +10,17 @@ info:
     **A API não executa cálculos**: dimensionamento, precificação e viabilidade rodam no app e no navegador
     (pacote `@lumini/domain`).
 
-    **Situação (30/10/2026):** implementada em `apps/api` (NestJS), com banco central SQLite local nesta fase
+    **Situação (24/11/2026):** implementada em `apps/api` (NestJS), com banco central SQLite local nesta fase
     (PostgreSQL no Amazon RDS na publicação). As regras do push e do pull são as do servidor de referência
-    `packages/sync/src/servidor/servidorReferencia.ts`. Testes de ponta a ponta em `apps/api/test/api.test.ts`.
+    `packages/sync/src/servidor/servidorReferencia.ts`. Testes de ponta a ponta em `apps/api/test/` (api, editor e limitador).
     Usuários de demonstração (senha `lumini123`): gestora@solarvale.com.br (Gestor), carlos@lumini.com e
     ana@solarvale.com.br (Técnicos).
+
+    **Limitação de uso (SCRUM-32):** cada cliente (usuário do token, ou IP) tem até 300 requisições por minuto
+    (`LIMITE_REQ_MINUTO`); 5 senhas erradas para o mesmo e-mail + IP bloqueiam o login por 15 minutos
+    (`LIMITE_TENTATIVAS_LOGIN`); o corpo da requisição vai até 2 MB (`LIMITE_CORPO`, senão **413**).
+    Passou do limite → **429 Too Many Requests** com `Retry-After`; as respostas trazem `RateLimit-Limit`
+    e `RateLimit-Remaining`. `GET /saude` nunca é limitado (health check da EC2).
 
     Tipos de origem: `packages/sync/src/contrato.ts`. Nomes dos campos de `dados`: Dicionário de Dados v1.4 (snake_case).
 servers:
