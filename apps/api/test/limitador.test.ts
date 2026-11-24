@@ -60,7 +60,7 @@ describe('API com limitação ligada', () => {
     const r = await login('carlos@lumini.com', SENHA_DEMO);
     expect(r.status).toBe(429);
     expect(Number(r.headers.get('retry-after'))).toBeGreaterThan(0);
-    expect((await r.json()).message).toContain('Muitas tentativas');
+    expect(((await r.json()) as { message: string }).message).toContain('Muitas tentativas');
     expect((await login('gestora@solarvale.com.br', SENHA_DEMO)).status).toBe(200); // outro e-mail segue normal
   });
 
